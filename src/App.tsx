@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { startOnlineSync, stopOnlineSync } from './db/onlineSync';
 import { runNotificationChecks } from './db/notificationEngine';
 import { Login } from './pages/Login';
+import { PwaUpdater } from './components/PwaUpdater';
 
 // Lazy-loaded route pages — split into separate chunks
 const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -180,6 +181,7 @@ function App() {
   return (
     <AuthProvider>
       <AppContent />
+      <PwaUpdater />
     </AuthProvider>
   );
 }

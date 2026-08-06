@@ -3,14 +3,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import { supabase } from '../db/supabaseClient';
 import { fetchProfile, loginWithMobilePin, logout as signOut } from '../db/auth';
-import type { TeamProfile } from '../db/auth';
+import type { TeamProfile, TeamRole } from '../db/auth';
 
 interface AuthState {
   loading: boolean;
   user: any | null;
   profile: TeamProfile | null;
   isAdmin: boolean;
-  login: (mobile: string, pin: string) => Promise<{ ok: boolean; error?: string }>;
+  login: (mobile: string, pin: string, expectedRole?: TeamRole) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -57,10 +57,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (mobile: string, pin: string) => {
+  const login = useCallback(async (mobile: string, pin: string, expectedRole?: TeamRole) => {
     const res = await loginWithMobilePin(mobile, pin);
     if (!res.ok || !res.profile) {
       return { ok: false, error: res.error || 'Login fail hua. Admin se contact karein.' };
+    }
+    // Role verification — enforce the login entry point chosen on the login screen
+    if (expectedRole && res.profile.role !== expectedRole) {
+      await signOut();
+      const actualLabel = res.profile.role === 'admin' ? 'Admin' : 'Telecaller';
+      const expectedLabel = expectedRole === 'admin' ? 'Admin' : 'Telecaller';
+      return {
+        ok: false,
+        error: `Ye account ${actualLabel} account hai. ${expectedLabel} Login se login nahi ho sakta — ${actualLabel} Login use karein.`,
+      };
     }
     setProfile(res.profile);
     setUser(res.user ?? null);
