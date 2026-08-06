@@ -1,6 +1,6 @@
 // src/db/auth.ts — Phone + PIN authentication on top of Supabase Auth.
-// Each team member logs in with a mobile number + 4-digit PIN. The PIN is the
-// Supabase Auth password of a synthetic email account (<mobile>@telecaller.crm).
+// Each team member logs in with a mobile number + PIN. The PIN is the
+// Supabase Auth password of a synthetic email account (<mobile>@telecaller.in).
 import { supabase } from './supabaseClient';
 
 export type TeamRole = 'admin' | 'telecaller';
@@ -21,9 +21,23 @@ export function normalizeMobile(mobile: string): string {
   return digits;
 }
 
-/** Synthetic email that maps a mobile number onto Supabase Auth. */
+/**
+ * Synthetic email that maps a mobile number onto Supabase Auth.
+ *
+ * NOTE: `.crm` is NOT a valid TLD — newer Supabase email validation rejects
+ * `@telecaller.crm` signups with `email_address_invalid`. New accounts now use
+ * `@telecaller.in` (valid TLD). Existing accounts created on the legacy
+ * `@telecaller.crm` domain still work via the fallback in loginWithMobilePin.
+ */
+export const EMAIL_DOMAIN = 'telecaller.in';
+export const LEGACY_EMAIL_DOMAIN = 'telecaller.crm';
+
 export function emailForMobile(mobile: string): string {
-  return `${normalizeMobile(mobile)}@telecaller.crm`;
+  return `${normalizeMobile(mobile)}@${EMAIL_DOMAIN}`;
+}
+
+export function legacyEmailForMobile(mobile: string): string {
+  return `${normalizeMobile(mobile)}@${LEGACY_EMAIL_DOMAIN}`;
 }
 
 export function friendlyAuthError(error: any): string {
@@ -46,10 +60,23 @@ export interface LoginResult {
 }
 
 export async function loginWithMobilePin(mobile: string, pin: string): Promise<LoginResult> {
-  const email = emailForMobile(mobile);
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password: pin.trim() });
-  if (error || !data.user) {
-    return { ok: false, error: friendlyAuthError(error) };
+  // Try the current domain first, then fall back to the legacy `.crm` domain
+  // so accounts created before the domain fix keep working.
+  const candidates = [emailForMobile(mobile), legacyEmailForMobile(mobile)];
+  let lastError: any = null;
+  let data: any = null;
+  let error: any = null;
+  for (const email of candidates) {
+    const attempt = await supabase.auth.signInWithPassword({ email, password: pin.trim() });
+    if (!attempt.error && attempt.data?.user) {
+      data = attempt.data;
+      error = null;
+      break;
+    }
+    lastError = attempt.error;
+  }
+  if (error || !data?.user) {
+    return { ok: false, error: friendlyAuthError(lastError) };
   }
   const profile = await fetchProfile(data.user.id);
   if (!profile) {
