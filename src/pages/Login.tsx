@@ -9,6 +9,7 @@ import Loader2 from 'lucide-react/dist/esm/icons/loader-2'
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
 import Users from 'lucide-react/dist/esm/icons/users'
 import { cn } from '../lib/utils';
+import { PwaInstallButton } from '../components/PwaInstallButton';
 
 type LoginRole = 'admin' | 'telecaller';
 
@@ -30,7 +31,7 @@ export function Login({ onContinueOffline }: Props) {
     setError('');
     const digits = mobile.replace(/\D/g, '');
     if (digits.length < 10) { setError('Sahi mobile number daalein (10 digit).'); return; }
-    if (pin.trim().length < 4) { setError('4-6 digit PIN daalein.'); return; }
+    if (pin.trim().length < 4) { setError('PIN daalein (kam se kam 4 digit).'); return; }
     setBusy(true);
     try {
       const res = await login(digits, pin, role);
@@ -189,6 +190,8 @@ export function Login({ onContinueOffline }: Props) {
               >
                 <WifiOff size={14} /> Internet nahi hai? Offline mode mein chalein
               </button>
+
+              <PwaInstallButton variant="dark" />
             </form>
 
             <p className="text-center text-[11px] text-slate-600 mt-6">

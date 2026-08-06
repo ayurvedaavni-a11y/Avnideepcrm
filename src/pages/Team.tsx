@@ -33,7 +33,7 @@ export function Team() {
     const digits = mobile.replace(/\D/g, '');
     if (!name.trim()) { toast.error('Naam daalein'); return; }
     if (digits.length < 10) { toast.error('Sahi 10-digit mobile number daalein'); return; }
-    if (!/^\d{4,6}$/.test(pin.trim())) { toast.error('PIN 4-6 digits ka hona chahiye'); return; }
+    if (!/^\d{6}$/.test(pin.trim())) { toast.error('PIN 6 digits ka hona chahiye'); return; }
     setCreating(true);
     try {
       const res = await createTeamMember(name.trim(), digits, pin.trim(), role);
@@ -101,7 +101,7 @@ export function Team() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login PIN (4-6 digits)</label>
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login PIN (6 digits)</label>
               <input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value)}
                 placeholder="••••••"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" />

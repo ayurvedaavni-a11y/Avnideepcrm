@@ -2,6 +2,7 @@ import { useState, useEffect, memo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import Search from 'lucide-react/dist/esm/icons/search'
+import Menu from 'lucide-react/dist/esm/icons/menu'
 import X from 'lucide-react/dist/esm/icons/x'
 import PhoneCall from 'lucide-react/dist/esm/icons/phone-call'
 import MessageSquare from 'lucide-react/dist/esm/icons/message-square'
@@ -179,8 +180,15 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
         </div>
       )}
 
-      <div className="bg-white border-b border-slate-200 px-8 py-3 flex justify-between items-center z-10 sticky top-0">
-        <div className="relative w-96">
+      <div className="bg-white border-b border-slate-200 px-3 sm:px-6 lg:px-8 py-2.5 lg:py-3 flex justify-between items-center gap-3 z-10 sticky top-0">
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('crm:toggle-sidebar'))}
+          className="lg:hidden p-2 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100 transition shrink-0"
+          aria-label="Menu"
+        >
+          <Menu size={22} />
+        </button>
+        <div className="relative w-full min-w-0 sm:w-72 lg:w-96">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
@@ -194,7 +202,7 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
           </div>
 
           {isSearchOpen && searchTerm.length >= 3 && (
-            <div className="absolute top-full mt-2 w-[500px] bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden max-h-[400px] overflow-y-auto">
+            <div className="absolute top-full mt-2 w-[500px] max-w-[calc(100vw-1.5rem)] right-0 sm:right-auto bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden max-h-[400px] overflow-y-auto">
               <div className="p-2 border-b border-slate-100 bg-slate-50 text-xs font-bold text-slate-500">SEARCH RESULTS</div>
               {results.length > 0 ? (
                 results.map((res, idx) => (
@@ -223,7 +231,7 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
           )}
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           <NotificationBell />
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
             AD
