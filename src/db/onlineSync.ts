@@ -148,6 +148,20 @@ async function processEntry(entry: any) {
 
   let cloudId = await getCloudId(cfg.dexie, local.id);
   let result;
+  // Leads enrichment: the live crm_leads table has customer_name + mobile as
+  // NOT NULL columns. Local leads only carry customerId, so look up the local
+  // customer (by LOCAL id, not cloud id) and attach its name/mobile — otherwise
+  // every push fails with 400 and leads never reach the cloud.
+  if (entry.table === 'leads' && local.customerId) {
+    const customer = await db.customers.get(Number(local.customerId) || 0);
+    if (customer) {
+      if (customer.name != null) cloudRow.customer_name = customer.name;
+      if (customer.mobile != null) cloudRow.mobile = customer.mobile;
+    }
+  }
+  if (cloudRow.customer_name == null) cloudRow.customer_name = '';
+  if (cloudRow.mobile == null) cloudRow.mobile = '';
+
   if (cloudId != null) {
     cloudRow.id = cloudId;
     result = await supabase.from(cfg.cloud).upsert(cloudRow, { onConflict: 'id' }).select('id').single();

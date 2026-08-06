@@ -23,6 +23,18 @@ alter table public.crm_leads
 alter table public.crm_notifications
   add column if not exists link_to text;
 
+-- ---- crm_leads : live table has customer_name + mobile as NOT NULL, but the
+-- ---- sync engine never sent them -> every lead push failed with 400 and the
+-- ---- cloud had 0 leads (mobile devices pulled nothing). Make them optional
+-- ---- (app now fills them from the customer record on every push).
+alter table public.crm_leads
+  alter column customer_name drop not null,
+  alter column mobile drop not null;
+
+alter table public.crm_leads
+  alter column customer_name set default '',
+  alter column mobile set default '';
+
 -- ---- verify ----
 select column_name
   from information_schema.columns
