@@ -155,8 +155,10 @@ async function processEntry(entry: any) {
   if (entry.table === 'leads' && local.customerId) {
     const customer = await db.customers.get(Number(local.customerId) || 0);
     if (customer) {
-      if (customer.name != null) cloudRow.customer_name = customer.name;
-      if (customer.mobile != null) cloudRow.mobile = customer.mobile;
+      // Only overwrite with truthy values so a stale/empty local customer
+      // record never blanks out a good cloud name/mobile.
+      if (customer.name) cloudRow.customer_name = customer.name;
+      if (customer.mobile) cloudRow.mobile = customer.mobile;
     }
   }
   if (cloudRow.customer_name == null) cloudRow.customer_name = '';
