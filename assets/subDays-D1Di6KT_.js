@@ -1,0 +1,1 @@
+import{ax as u,Y as c}from"./index-CHVRji15.js";function f(a,r,e){const t=u(a,e==null?void 0:e.in);return isNaN(r)?c(a,NaN):(r&&t.setDate(t.getDate()+r),t)}function s(a,r){const e=u(a,r==null?void 0:r.in);return e.setHours(23,59,59,999),e}function D(a,r,e){return f(a,-r,e)}export{s as e,D as s};
