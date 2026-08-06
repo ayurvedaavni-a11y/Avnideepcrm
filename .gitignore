@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+release/
+
+# Test artifacts
+tmp-chrome-profile/
+e2e-test-server.js
+server.log
+test-server-log.txt
+nul
+
+# Environment secrets
+.env
+.env.local
+.env.production
+.env.development
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store

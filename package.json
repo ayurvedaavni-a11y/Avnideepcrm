@@ -1,0 +1,108 @@
+{
+  "name": "avnideep-crm-pro",
+  "private": true,
+  "version": "1.0.0",
+  "description": "AVNIDEEP CRM PRO â€” Offline COD Ecommerce Business Management Software",
+  "author": "AVNIDEEP",
+  "license": "UNLICENSED",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "cross-env NODE_ENV=development electron electron/main.js",
+    "electron:prod": "electron electron/main.js",
+    "dist": "vite build && electron-builder --win --publish never",
+    "dist:portable": "vite build && electron-builder --win portable --publish never",
+    "postinstall": "electron-builder install-app-deps",
+    "build:light": "vite build"
+  },
+  "build": {
+    "appId": "com.avnideep.crmpro",
+    "productName": "AvnideepCRMPro",
+    "copyright": "Copyright Â© 2026 AVNIDEEP",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Avnideep CRM Pro",
+      "installerIcon": "electron/icon.ico",
+      "uninstallerIcon": "electron/icon.ico",
+      "installerHeaderIcon": "electron/icon.ico",
+      "license": null,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "AvnideepCRMPro-Portable-${version}.${ext}"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "extraResources": [],
+    "publish": null
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.106.1",
+    "@tanstack/react-virtual": "^3.14.6",
+    "autoprefixer": "^10.5.0",
+    "better-sqlite3": "^12.11.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.2.1",
+    "dexie": "^4.4.2",
+    "dexie-react-hooks": "^4.4.0",
+    "exceljs": "^4.4.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "lucide-react": "^1.16.0",
+    "postcss": "^8.5.15",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "react-hot-toast": "^2.6.0",
+    "react-router-dom": "^7.15.1",
+    "recharts": "^3.8.1",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.17",
+    "@types/node": "22.19.17",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.1",
+    "cross-env": "^10.1.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
+    "tailwindcss": "^3.4.19",
+    "typescript": "5.9.3",
+    "vite": "^6.4.2",
+    "vite-plugin-singlefile": "2.3.0"
+  }
+}
