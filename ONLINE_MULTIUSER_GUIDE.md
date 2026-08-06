@@ -35,6 +35,8 @@ Admin (Desktop/Web) ────┘        └→ Sabhi ko turant changes dikhte
 1. Supabase **Authentication → Users → Add user** kholen:
    - Email: `9876543210@telecaller.crm` (apna mobile number daalein)
    - Password: 4-digit PIN, e.g. `1234`
+
+> **Zaroori:** Supabase dashboard mein **Authentication → Auth Settings** (ya **Project Settings → Authentication**) ke **Password** section mein **Minimum password length** ko **6** se **4** kar dein. Default 6 hai — warna 4-digit PIN par "Password should be at least 6 characters" error aayega. App ab 4-6 digit PIN support karta hai.
 2. **SQL Editor** mein yeh chalayen (mobile number badal kar):
 
 ```sql

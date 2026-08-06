@@ -103,7 +103,7 @@ export function Team() {
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login PIN (4-6 digits)</label>
               <input type="password" inputMode="numeric" maxLength={6} value={pin} onChange={(e) => setPin(e.target.value)}
-                placeholder="••••"
+                placeholder="••••••"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" />
             </div>
             <div>
