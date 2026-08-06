@@ -31,7 +31,7 @@ export function Login({ onContinueOffline }: Props) {
     setError('');
     const digits = mobile.replace(/\D/g, '');
     if (digits.length < 10) { setError('Sahi mobile number daalein (10 digit).'); return; }
-    if (pin.trim().length < 4) { setError('PIN daalein (kam se kam 4 digit).'); return; }
+    if (pin.trim().length < 4) { setError('Sahi PIN daalein.'); return; }
     setBusy(true);
     try {
       const res = await login(digits, pin, role);
@@ -159,7 +159,7 @@ export function Login({ onContinueOffline }: Props) {
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
                   placeholder="••••••"
-                  maxLength={6}
+                  maxLength={8}
                   className="w-full bg-slate-900/70 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition text-center text-lg tracking-[0.5em]"
                 />
               </div>

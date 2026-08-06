@@ -24,8 +24,8 @@ export function Settings() {
 
   const handleChangePin = async () => {
     setPinMsg(''); setPinOk(false);
-    if (!/^\d{6}$/.test(newPin.trim())) {
-      setPinMsg('Naya PIN 6 digits ka hona chahiye.');
+    if (!/^\d{6,8}$/.test(newPin.trim())) {
+      setPinMsg('Naya PIN 6-8 digits ka hona chahiye.');
       return;
     }
     const res = await changePin(curPin, newPin);
