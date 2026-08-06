@@ -2,7 +2,6 @@ import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Layout } from './components/Layout';
-import { LockScreen } from './components/LockScreen';
 import { Toaster } from 'react-hot-toast';
 import { db } from './db/db';
 import { hydrateFromSQLite, attachWriteThroughSync } from './db/sqliteSync';
@@ -64,7 +63,6 @@ function AppContent() {
   const { loading, user, profile } = useAuth();
   const [isReady, setIsReady] = useState(false);
   const [offlineMode, setOfflineMode] = useState(false);
-  const [isUnlocked, setIsUnlocked] = useState(() => sessionStorage.getItem('crm_unlocked') === 'true');
 
   const canEnter = offlineMode || Boolean(user && profile);
 
@@ -125,10 +123,6 @@ function AppContent() {
   }
 
   if (!isReady) return <SplashScreen />;
-
-  if (!isUnlocked) {
-    return <LockScreen onUnlock={() => setIsUnlocked(true)} />;
-  }
 
   // Lazy-loading fallback — shown while a page bundle is being fetched
   const PageFallback = () => (
