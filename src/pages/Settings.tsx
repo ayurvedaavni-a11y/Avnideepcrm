@@ -24,8 +24,8 @@ export function Settings() {
 
   const handleChangePin = async () => {
     setPinMsg(''); setPinOk(false);
-    if (!/^d{4}$/.test(newPin.trim())) {
-      setPinMsg('Naya PIN 4 digits ka hona chahiye.');
+    if (!/^\d{4,6}$/.test(newPin.trim())) {
+      setPinMsg('Naya PIN 4-6 digits ka hona chahiye.');
       return;
     }
     const res = await changePin(curPin, newPin);
@@ -337,9 +337,9 @@ export function Settings() {
           <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
             <h3 className="font-bold text-slate-800 mb-2">Change Login PIN</h3>
             <div className="flex flex-wrap gap-2">
-              <input type="password" inputMode="numeric" maxLength={4} value={curPin} onChange={(e) => setCurPin(e.target.value)} placeholder="Current PIN"
+              <input type="password" inputMode="numeric" maxLength={6} value={curPin} onChange={(e) => setCurPin(e.target.value)} placeholder="Current PIN"
                 className="w-36 border border-slate-300 rounded-lg px-3 py-2 text-sm tracking-[0.3em] text-center focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
-              <input type="password" inputMode="numeric" maxLength={4} value={newPin} onChange={(e) => setNewPin(e.target.value)} placeholder="New PIN"
+              <input type="password" inputMode="numeric" maxLength={6} value={newPin} onChange={(e) => setNewPin(e.target.value)} placeholder="New PIN"
                 className="w-36 border border-slate-300 rounded-lg px-3 py-2 text-sm tracking-[0.3em] text-center focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
               <button onClick={handleChangePin} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition">Update PIN</button>
             </div>
