@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // Role verification — enforce the login entry point chosen on the login screen
     if (expectedRole && res.profile.role !== expectedRole) {
-      await signOut();
+      try { await signOut(); } catch (e) { console.error('[Auth] role mismatch signOut failed:', e); }
       const actualLabel = res.profile.role === 'admin' ? 'Admin' : 'Telecaller';
       const expectedLabel = expectedRole === 'admin' ? 'Admin' : 'Telecaller';
       return {
