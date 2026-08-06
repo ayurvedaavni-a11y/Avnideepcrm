@@ -43,7 +43,7 @@ begin
     new.id,
     coalesce(new.raw_user_meta_data ->> 'full_name', 'Telecaller'),
     coalesce(new.raw_user_meta_data ->> 'mobile', ''),
-    'telecaller' // role is NEVER taken from client metadata (security)
+    'telecaller' -- role is NEVER taken from client metadata (security)
   )
   on conflict (id) do nothing;
   return new;
