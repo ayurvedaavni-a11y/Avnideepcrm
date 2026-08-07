@@ -93,7 +93,7 @@ export const api = {
       body: { name, mobile, pin, role },
     }),
   listTeam: () => request<{ members: any[] }>('/api/auth/team').then((r) => r.members),
-  setMember: (id: string, changes: { is_active?: boolean; role?: string; pin?: string }) =>
+  setMember: (id: string, changes: { is_active?: boolean; role?: string; pin?: string; mobile?: string }) =>
     request<{ ok: boolean }>(`/api/auth/member/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: changes,
@@ -106,6 +106,13 @@ export const api = {
       body: { currentPin, newPin },
     }),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST', body: {} }),
+
+  // ---- lead assignment (admin) ----
+  assignLeads: (leadIds: number[], assignToId: string, assignToName: string, reassign?: boolean) =>
+    request<{ ok: boolean; assigned: number; total: number }>('/api/leads/assign', {
+      method: 'POST',
+      body: { leadIds, assignToId, assignToName, reassign: reassign === true },
+    }),
 
   // ---- sync ----
   pushRow: (table: string, row: Record<string, unknown>, conflictKey?: string) =>

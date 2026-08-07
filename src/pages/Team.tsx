@@ -10,7 +10,9 @@ import KeyRound from 'lucide-react/dist/esm/icons/key-round'
 import X from 'lucide-react/dist/esm/icons/x'
 import { createTeamMember, deleteMember, listTeamMembers, resetMemberPin, setMemberActive, setMemberRole } from '../db/auth';
 import type { TeamProfile } from '../db/auth';
+import { api } from '../db/apiClient';
 import { useAuth } from '../context/AuthContext';
+import Smartphone from 'lucide-react/dist/esm/icons/smartphone'
 
 export function Team() {
   const { profile } = useAuth();
@@ -122,6 +124,23 @@ export function Team() {
     }
   };
 
+  const handleChangeMobile = async (m: TeamProfile) => {
+    const next = window.prompt(`${m.full_name} ka naya mobile number (10 digit):`, m.mobile || '');
+    if (next === null) return;
+    const digits = next.replace(/\D/g, '');
+    if (digits.length !== 10) { toast.error('Sahi 10-digit mobile number daalein'); return; }
+    setBusyId(m.id);
+    try {
+      await api.setMember(m.id, { mobile: digits });
+      toast.success(`${m.full_name} ka mobile number update ho gaya!`);
+      await load();
+    } catch (e: any) {
+      toast.error(e?.message || 'Mobile change nahi hua');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const changeRole = async (m: TeamProfile) => {
     if (!window.confirm(`${m.full_name} ko ${m.role === 'admin' ? 'telecaller' : 'admin'} banana hai?`)) return;
     setBusyId(m.id);
@@ -202,6 +221,7 @@ export function Team() {
                   <th className="px-6 py-3">Name</th>
                   <th className="px-6 py-3">Mobile</th>
                   <th className="px-6 py-3">Role</th>
+                  <th className="px-6 py-3">Leads</th>
                   <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3 text-right">Actions</th>
                 </tr>
@@ -221,6 +241,9 @@ export function Team() {
                       </button>
                     </td>
                     <td className="px-6 py-3">
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">{(m as any).lead_count ?? 0}</span>
+                    </td>
+                    <td className="px-6 py-3">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${m.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
                         {m.is_active ? 'Active' : 'Inactive'}
                       </span>
@@ -230,6 +253,11 @@ export function Team() {
                         title={m.is_active ? 'Deactivate' : 'Activate'}
                         className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed">
                         <Power size={16} />
+                      </button>
+                      <button onClick={() => handleChangeMobile(m)} disabled={busyId === m.id}
+                        title="Mobile Number Change Karein"
+                        className="p-2 rounded-lg text-sky-500 hover:bg-sky-50 hover:text-sky-600 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <Smartphone size={16} />
                       </button>
                       <button onClick={() => { setNewPin(''); setPinResetMember(m); }} disabled={busyId === m.id}
                         title="PIN Change Karein"

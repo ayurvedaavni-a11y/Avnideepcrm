@@ -80,7 +80,7 @@ export function GlobalDateFilter() {
 
       {/* Dropdown Panel */}
       {isOpen && (
-        <div className="absolute top-full mt-2 right-0 w-[680px] bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="absolute top-full mt-2 right-0 w-[680px] max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Quick Preset Grid */}
           <div className="p-4 border-b border-slate-100">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Quick Filters</div>

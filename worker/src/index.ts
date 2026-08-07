@@ -249,25 +249,67 @@ async function handleMe(_env: Env, _request: Request, user: Record<string, any> 
 async function handleTeam(env: Env, _request: Request, user: Record<string, any> | null): Promise<Response> {
   const denied = requireAdmin(user);
   if (denied) return denied;
+  // lead_count lets the admin see how many leads each telecaller currently owns.
   const res = await env.DB.prepare(
-    'SELECT id, mobile, full_name, role, is_active, created_at FROM users ORDER BY created_at DESC'
+    `SELECT u.id, u.mobile, u.full_name, u.role, u.is_active, u.created_at,
+            (SELECT COUNT(*) FROM crm_leads WHERE assigned_to = CAST(u.id AS TEXT) OR assigned_agent = u.full_name) AS lead_count
+     FROM users u ORDER BY u.created_at DESC`
   ).all();
-  return json({ members: (res.results || []).map((r) => profileOf(r as Record<string, any>)) });
+  return json({
+    members: (res.results || []).map((r) => {
+      const row = r as Record<string, any>;
+      return { ...profileOf(row), lead_count: Number(row.lead_count ?? 0) };
+    }),
+  });
 }
 
 async function handleMemberPatch(env: Env, request: Request, user: Record<string, any> | null, id: string): Promise<Response> {
   const denied = requireAdmin(user);
   if (denied) return denied;
+  const targetId = Number(id);
+  const isSelf = String(user!.id) === String(targetId);
   const body = await readJson(request);
   const sets: string[] = [];
   const values: any[] = [];
+
+  // Admin can change a telecaller's mobile number (unique, normalized).
+  if (body.mobile !== undefined) {
+    const mobile = normalizeMobile(body.mobile);
+    if (!/^\d{10}$/.test(mobile)) return json({ error: 'Invalid mobile number' }, 400);
+    const dup = await env.DB.prepare('SELECT id FROM users WHERE mobile = ? AND id <> ?')
+      .bind(mobile, targetId)
+      .first();
+    if (dup) return json({ error: 'Is mobile number ka account pehle se maujood hai.' }, 409);
+    sets.push('mobile = ?');
+    values.push(mobile);
+  }
   if (body.is_active !== undefined) {
+    if (isSelf && !body.is_active) {
+      return json({ error: 'Apna account khud deactivate nahi kar sakte' }, 400);
+    }
     sets.push('is_active = ?');
     values.push(body.is_active ? 1 : 0);
   }
   if (body.role === 'admin' || body.role === 'telecaller') {
+    if (isSelf && body.role !== 'admin') {
+      return json({ error: 'Apna role khud nahi badal sakte' }, 400);
+    }
     sets.push('role = ?');
     values.push(body.role);
+  }
+  // LOCKOUT GUARD: never deactivate/demote the last active admin.
+  if ((body.is_active === false || body.role === 'telecaller') && !isSelf) {
+    const target = await env.DB.prepare('SELECT role, is_active FROM users WHERE id = ?').bind(targetId).first();
+    if (target && (target as any).role === 'admin' && (target as any).is_active === 1) {
+      const admins = await env.DB.prepare(
+        "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_active = 1 AND id <> ?"
+      )
+        .bind(targetId)
+        .first();
+      if (Number((admins as any)?.c ?? 0) === 0) {
+        return json({ error: 'Last admin ko block/demote nahi kar sakte' }, 400);
+      }
+    }
   }
   // Admin resets a member's login PIN (no current-PIN check needed — the
   // admin is already authorized via requireAdmin).
@@ -278,7 +320,7 @@ async function handleMemberPatch(env: Env, request: Request, user: Record<string
     values.push(await hashPin(newPin, pbkdf2Iters(env)));
   }
   if (sets.length === 0) return json({ error: 'Nothing to update' }, 400);
-  values.push(Number(id));
+  values.push(targetId);
   const res = await env.DB.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...values).run();
   if (Number((res.meta as any)?.changes ?? 0) === 0) return json({ error: 'Member not found' }, 404);
   return json({ ok: true });
@@ -287,8 +329,21 @@ async function handleMemberPatch(env: Env, request: Request, user: Record<string
 async function handleMemberDelete(env: Env, _request: Request, user: Record<string, any> | null, id: string): Promise<Response> {
   const denied = requireAdmin(user);
   if (denied) return denied;
+  const targetId = Number(id);
   if (String(id) === String(user!.id)) return json({ error: 'Apna account delete nahi kar sakte' }, 400);
-  const res = await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(Number(id)).run();
+  // LOCKOUT GUARD: never delete the last active admin.
+  const target = await env.DB.prepare('SELECT role, is_active FROM users WHERE id = ?').bind(targetId).first();
+  if (target && (target as any).role === 'admin' && (target as any).is_active === 1) {
+    const admins = await env.DB.prepare(
+      "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_active = 1 AND id <> ?"
+    )
+      .bind(targetId)
+      .first();
+    if (Number((admins as any)?.c ?? 0) === 0) {
+      return json({ error: 'Last admin ko delete nahi kar sakte' }, 400);
+    }
+  }
+  const res = await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(targetId).run();
   if (Number((res.meta as any)?.changes ?? 0) === 0) return json({ error: 'Member not found' }, 404);
   return json({ ok: true });
 }
@@ -426,6 +481,21 @@ async function handleDelete(env: Env, request: Request, user: Record<string, any
   const table = String(body.table || '');
   if (!TABLES[table]) return json({ error: `Unknown table: ${table}` }, 400);
   if (!canAccessTable(user, table)) return json({ error: 'Forbidden' }, 403);
+  // DATA SAFETY: telecallers may only ever delete leads assigned to THEM.
+  // Shared/history rows (call logs, timeline, customers, orders, …) are
+  // admin-only deletes — a telecaller can never silently wipe cloud data.
+  if (user && user.role !== 'admin') {
+    if (table === 'crm_leads') {
+      const owned = await env.DB.prepare(
+        'SELECT 1 FROM crm_leads WHERE id = ? AND (assigned_to = ? OR assigned_agent = ?)'
+      )
+        .bind(body.id, user.id, user.full_name)
+        .first();
+      if (!owned) return json({ error: 'Forbidden — ye lead aapko assigned nahi hai' }, 403);
+    } else {
+      return json({ error: 'Forbidden — admin only' }, 403);
+    }
+  }
   await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(body.id).run();
   return json({ ok: true });
 }
@@ -503,6 +573,61 @@ async function handleIntake(env: Env, request: Request): Promise<Response> {
   return json({ ok: true, id });
 }
 
+// ---------------------------------------------------------------------
+// lead assignment (admin-only, server-side — survives sync + scales to
+// 100k+ leads, and generates an in-app notification for the assignee)
+// ---------------------------------------------------------------------
+async function handleLeadsAssign(env: Env, request: Request, user: Record<string, any> | null): Promise<Response> {
+  const denied = requireAdmin(user);
+  if (denied) return denied;
+  const body = await readJson(request);
+  const ids = Array.isArray(body.leadIds)
+    ? body.leadIds.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+    : [];
+  if (!ids.length) return json({ error: 'leadIds required' }, 400);
+
+  const assignToId = body.assignToId !== undefined ? String(body.assignToId) : '';
+  const rawName = typeof body.assignToName === 'string' ? body.assignToName : '';
+
+  // Empty assignToId => unassign (admin retracts leads). Otherwise the
+  // assignee must be an existing active member.
+  let name = '';
+  if (assignToId && assignToId !== '0') {
+    const member = await env.DB.prepare('SELECT id, full_name FROM users WHERE id = ? AND is_active = 1')
+      .bind(Number(assignToId) || assignToId)
+      .first();
+    if (!member) return json({ error: 'Assignee not found / inactive' }, 404);
+    name = rawName || String((member as any).full_name || 'Telecaller');
+  }
+
+  const reassign = body.reassign === true;
+  const placeholders = ids.map(() => '?').join(', ');
+  const now = new Date().toISOString();
+  // Without `reassign`, already-assigned leads are skipped (no double work,
+  // no accidental overwrite of another telecaller's leads).
+  const whereExtra = reassign
+    ? ''
+    : " AND (assigned_to IS NULL OR assigned_to = '' OR assigned_to = '0')";
+  const res = await env.DB.prepare(
+    `UPDATE crm_leads SET assigned_to = ?, assigned_agent = ?, updated_at = ? WHERE id IN (${placeholders})${whereExtra}`
+  )
+    .bind(assignToId, name, now, ...ids)
+    .run();
+  const changed = Number((res.meta as any)?.changes ?? 0);
+
+  // Notify the assignee (in-app; surfaced by the NotificationBell).
+  if (changed > 0 && name) {
+    const title = assignToId ? 'New leads assigned' : 'Leads unassigned';
+    const message = `${changed} lead${changed === 1 ? '' : 's'} aapko assign hui hain.`;
+    await env.DB.prepare(
+      "INSERT INTO crm_notifications (title, message, type, is_read, link_to, created_at) VALUES (?, ?, 'lead_assignment', 0, '/leads', ?)"
+    )
+      .bind(title, message, now)
+      .run();
+  }
+  return json({ ok: true, assigned: changed, total: ids.length });
+}
+
 async function handleIntakePending(env: Env, _request: Request, user: Record<string, any> | null): Promise<Response> {
   const denied = requireAuth(user);
   if (denied) return denied;
@@ -546,6 +671,9 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
       if (path === '/api/sync/delete' && request.method === 'POST') return handleDelete(env, request, user);
       if (path === '/api/sync/pull' && request.method === 'GET') return handlePull(env, request, user, url);
       if (path === '/api/sync/count' && request.method === 'GET') return handleCount(env, request, user, url);
+
+      // ---- lead assignment ----
+      if (path === '/api/leads/assign' && request.method === 'POST') return handleLeadsAssign(env, request, user);
 
       // ---- intake ----
       if (path === '/api/intake' && request.method === 'POST') return handleIntake(env, request);

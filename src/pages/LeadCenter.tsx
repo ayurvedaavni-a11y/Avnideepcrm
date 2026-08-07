@@ -24,8 +24,12 @@ import { assignLead, bulkAssignLeads, removeAssignment } from '../db/assignmentE
 import { listTeamMembers } from '../db/auth';
 import type { TeamProfile } from '../db/auth';
 import PhoneCall from 'lucide-react/dist/esm/icons/phone-call'
+import Phone from 'lucide-react/dist/esm/icons/phone'
+import MessageCircle from 'lucide-react/dist/esm/icons/message-circle'
+import MessageSquare from 'lucide-react/dist/esm/icons/message-square'
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
 import { CallLogModal } from '../components/CallLogModal';
+import { api } from '../db/apiClient';
 
 // ===================================================================
 // PRODUCTION-HARDENED: Active Pipeline Statuses
@@ -375,6 +379,51 @@ export function LeadCenter() {
         }
       },
       {
+        key: 'quickActions',
+        header: 'Quick Actions',
+        width: '200px',
+        align: 'center',
+        render: (lead: any) => {
+          const customer = customerMap.get(lead.customerId);
+          const mobile = customer?.mobile;
+          if (!mobile) return <span className="text-slate-300 text-xs">-</span>;
+          return (
+            <div className="flex items-center justify-center gap-1.5">
+              <a href={`tel:${mobile}`} title="Direct Call"
+                className="p-2 rounded-lg text-white bg-green-600 hover:bg-green-700 shadow-sm transition"
+                onClick={(e) => e.stopPropagation()}>
+                <Phone size={15} />
+              </a>
+              <a href={`https://wa.me/91${mobile}`} target="_blank" rel="noreferrer" title="WhatsApp"
+                className="p-2 rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition"
+                onClick={(e) => e.stopPropagation()}>
+                <MessageCircle size={15} />
+              </a>
+              <a href={`sms:+91${mobile}`} title="SMS"
+                className="p-2 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition"
+                onClick={(e) => e.stopPropagation()}>
+                <MessageSquare size={15} />
+              </a>
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await navigator.clipboard.writeText(mobile);
+                    toast.success('Number copied: ' + mobile);
+                  } catch {
+                    toast.error('Copy failed');
+                  }
+                }}
+                title="Copy Number"
+                className="p-2 rounded-lg text-slate-600 bg-slate-200 hover:bg-slate-300 shadow-sm transition"
+              >
+                <Copy size={15} />
+              </button>
+            </div>
+          );
+        }
+      },
+      {
         key: 'callLog',
         header: 'Call Log',
         width: '110px',
@@ -587,8 +636,27 @@ export function LeadCenter() {
           telecallers={telecallers}
           onClose={() => setBulkAssignLead(null)}
           onAssign={async (tc: TeamProfile, reassign: boolean) => {
-            const res = await bulkAssignLeads(bulkAssignLead.leadIds, tc, { reassign });
-            const msg = 'Assigned ' + res.assigned + ' lead(s) to ' + tc.full_name + (res.skipped ? ' (' + res.skipped + ' already assigned)' : '');
+            // Online: assign server-side (creates the assignment notification,
+            // survives multi-device, scales to 100k+ leads) + mirror locally.
+            // Offline / failure: fall back to the local Dexie assignment engine.
+            let res: { assigned: number; skipped: number };
+            let usedServer = false;
+            if (navigator.onLine) {
+              try {
+                const r = await api.assignLeads(bulkAssignLead.leadIds, tc.id, tc.full_name, reassign);
+                const now = new Date().toISOString();
+                for (const id of bulkAssignLead.leadIds) {
+                  await db.leads.update(id, { assignedTo: tc.id, assignedAgent: tc.full_name, updatedAt: now });
+                }
+                res = { assigned: r.assigned, skipped: bulkAssignLead.leadIds.length - r.assigned };
+                usedServer = true;
+              } catch {
+                res = await bulkAssignLeads(bulkAssignLead.leadIds, tc, { reassign });
+              }
+            } else {
+              res = await bulkAssignLeads(bulkAssignLead.leadIds, tc, { reassign });
+            }
+            const msg = 'Assigned ' + res.assigned + ' lead(s) to ' + tc.full_name + (res.skipped ? ' (' + res.skipped + ' already assigned)' : '') + (usedServer ? ' • cloud sync' : '');
             toast.success(msg);
             setSelectedIds(new Set());
             setBulkAssignLead(null);

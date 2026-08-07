@@ -16,6 +16,8 @@ import IndianRupee from 'lucide-react/dist/esm/icons/indian-rupee'
 import ShoppingCart from 'lucide-react/dist/esm/icons/shopping-cart'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import MessageSquare from 'lucide-react/dist/esm/icons/message-square'
+import MessageCircle from 'lucide-react/dist/esm/icons/message-circle'
+import Copy from 'lucide-react/dist/esm/icons/copy'
 import Edit2 from 'lucide-react/dist/esm/icons/edit-2'
 import Save from 'lucide-react/dist/esm/icons/save'
 import { safeFormat } from '../lib/safeFormat';
@@ -104,6 +106,31 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
                 <p className="text-sm text-slate-600 flex items-center gap-2 mt-0.5">
                   <Phone size={14} /> {customer.mobile}
                 </p>
+                {/* One-tap customer actions: Call / WhatsApp / SMS / Copy */}
+                <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                  <a href={`tel:${customer.mobile}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-green-600 hover:bg-green-700 shadow-sm transition">
+                    <Phone size={13} /> Call
+                  </a>
+                  <a href={`https://wa.me/91${customer.mobile}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition">
+                    <MessageCircle size={13} /> WhatsApp
+                  </a>
+                  <a href={`sms:+91${customer.mobile}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition">
+                    <MessageSquare size={13} /> SMS
+                  </a>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(customer.mobile);
+                        toast.success('Number copied: ' + customer.mobile);
+                      } catch {
+                        toast.error('Copy failed');
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-slate-200 hover:bg-slate-300 shadow-sm transition"
+                  >
+                    <Copy size={13} /> Copy Number
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {customer.riskLevel === 'Fake' && <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded flex items-center gap-1"><AlertTriangle size={10} /> FAKE</span>}
                   {isRepeatBuyer && <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">Repeat Buyer</span>}
