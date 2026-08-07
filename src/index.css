@@ -25,3 +25,100 @@ textarea {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* =====================================================================
+   Enterprise motion system — real keyframes (the old 'animate-in'
+   classes had no plugin backing them; these classes actually animate).
+   ===================================================================== */
+@keyframes av-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes av-zoom-in {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes av-slide-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes av-slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes av-pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+@keyframes av-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+@keyframes av-pop {
+  0%   { transform: scale(0.85); opacity: 0; }
+  60%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.av-fade-in         { animation: av-fade-in 0.25s ease both; }
+.av-zoom-in         { animation: av-zoom-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.av-slide-up        { animation: av-slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.av-slide-in-right  { animation: av-slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.av-pulse-soft      { animation: av-pulse-soft 1.6s ease-in-out infinite; }
+.av-pop             { animation: av-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Stagger helper — child cards cascade in */
+.av-stagger > * { animation: av-slide-up 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.av-stagger > *:nth-child(1)  { animation-delay: 0.02s; }
+.av-stagger > *:nth-child(2)  { animation-delay: 0.05s; }
+.av-stagger > *:nth-child(3)  { animation-delay: 0.08s; }
+.av-stagger > *:nth-child(4)  { animation-delay: 0.11s; }
+.av-stagger > *:nth-child(5)  { animation-delay: 0.14s; }
+.av-stagger > *:nth-child(6)  { animation-delay: 0.17s; }
+.av-stagger > *:nth-child(n+7){ animation-delay: 0.2s; }
+
+/* ---------- Slim, subtle scrollbars for kanban / chips ---------- */
+.av-scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225) transparent;
+}
+.av-scroll-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.av-scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.av-scroll-thin::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225);
+  border-radius: 9999px;
+}
+.av-scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184);
+}
+
+.av-scroll-none {
+  scrollbar-width: none;
+}
+.av-scroll-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Glassmorphism card surface ---------- */
+.av-glass {
+  background: linear-gradient(160deg, rgba(255,255,255,0.96), rgba(248,250,252,0.92));
+  backdrop-filter: blur(8px);
+}
+
+/* Drag over state — drop zone highlight */
+.av-drop-target {
+  box-shadow: inset 0 0 0 2px rgb(59 130 246 / 0.55), inset 0 0 24px rgb(59 130 246 / 0.10);
+  background: rgb(239 246 255 / 0.9) !important;
+  transition: box-shadow 0.15s ease, background 0.15s ease;
+}
+
+/* Dragging ghost */
+.av-dragging {
+  opacity: 0.4;
+  transform: scale(0.98) rotate(0.5deg);
+}
