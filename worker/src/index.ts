@@ -614,19 +614,26 @@ async function handleLeadsAssign(env: Env, request: Request, user: Record<string
   }
 
   const reassign = body.reassign === true;
-  const placeholders = ids.map(() => '?').join(', ');
   const now = new Date().toISOString();
   // Without `reassign`, already-assigned leads are skipped (no double work,
   // no accidental overwrite of another telecaller's leads).
   const whereExtra = reassign
     ? ''
     : " AND (assigned_to IS NULL OR assigned_to = '' OR assigned_to = '0')";
-  const res = await env.DB.prepare(
-    `UPDATE crm_leads SET assigned_to = ?, assigned_agent = ?, updated_at = ? WHERE id IN (${placeholders})${whereExtra}`
-  )
-    .bind(assignToId, name, now, ...ids)
-    .run();
-  const changed = Number((res.meta as any)?.changes ?? 0);
+  // D1 caps SQL variables per statement (~100) — chunk the IN() list so
+  // bulk-assigns of thousands of leads never hit "too many SQL variables".
+  const CHUNK = 90;
+  let changed = 0;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(', ');
+    const res = await env.DB.prepare(
+      `UPDATE crm_leads SET assigned_to = ?, assigned_agent = ?, updated_at = ? WHERE id IN (${placeholders})${whereExtra}`
+    )
+      .bind(assignToId, name, now, ...chunk)
+      .run();
+    changed += Number((res.meta as any)?.changes ?? 0);
+  }
 
   // Notify the assignee (in-app; surfaced by the NotificationBell).
   if (changed > 0 && name) {
