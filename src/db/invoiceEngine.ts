@@ -1,10 +1,21 @@
 import { db, Invoice } from './db';
+import { getCurrentRole } from './apiClient';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { getGSTConfig, getCompanyConfig } from './settingsEngine';
 import { safeMoney } from '../lib/safe';
 import { resolveCustomerState } from './stateResolver';
+
+// ===== Admin-only invoice guard =====
+// Telecallers can neither view, download, print nor generate invoices. This is
+// enforced in the UI (button hidden, admin-only routes) AND here, so a
+// telecaller device never even creates/holds an invoice row. The worker
+// additionally denies crm_invoices access for non-admin roles, and invoice
+// rows are not part of the synced table set at all.
+function invoiceAllowed(): boolean {
+  return getCurrentRole() === 'admin';
+}
 
 // ===== Centralized GST Decision Engine =====
 export function isSameState(customerState: string, companyState: string): boolean {
@@ -141,6 +152,10 @@ export async function generateInvoiceNumber(companyCfg?: any): Promise<string> {
 }
 
 export async function autoGenerateInvoice(orderId: number, agentName: string = 'System'): Promise<Invoice | null> {
+  if (!invoiceAllowed()) {
+    console.warn('[InvoiceEngine] Invoice generation blocked — admin only');
+    return null;
+  }
   try {
     if (orderId <= 0) {
       console.warn('[InvoiceEngine] Cannot auto-generate invoice for orderId <= 0 (manual invoice)');
@@ -463,6 +478,10 @@ export async function createManualInvoice(payload: {
   codCharge?: number;
   notes?: string;
 }): Promise<Invoice | null> {
+  if (!invoiceAllowed()) {
+    console.warn('[InvoiceEngine] Invoice creation blocked — admin only');
+    return null;
+  }
   try {
     const gstCfg = await getGSTConfig();
     const companyCfg = await getCompanyConfig();
@@ -700,6 +719,10 @@ export function generateInvoicePDF(invoice: Invoice, companyCfg: any): jsPDF {
 }
 
 export async function downloadInvoicePDF(invoice: Invoice) {
+  if (!invoiceAllowed()) {
+    toast.error('Invoice sirf Admin dekh sakta hai');
+    return;
+  }
   try {
     const companyCfg = await getCompanyConfig();
     const doc = generateInvoicePDF(invoice, companyCfg);
@@ -718,6 +741,10 @@ export async function downloadInvoicePDF(invoice: Invoice) {
 }
 
 export async function printInvoice(invoice: Invoice) {
+  if (!invoiceAllowed()) {
+    toast.error('Invoice sirf Admin dekh sakta hai');
+    return;
+  }
   try {
     const companyCfg = await getCompanyConfig();
     const doc = generateInvoicePDF(invoice, companyCfg);

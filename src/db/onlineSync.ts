@@ -8,7 +8,7 @@
 // Local int ids are mapped to cloud INTEGER ids in syncMap.
 // =====================================================================
 import { db } from './db';
-import { api } from './apiClient';
+import { api, getToken } from './apiClient';
 import { setSyncStatus } from './syncStatus';
 
 // ---------- table config ----------
@@ -428,9 +428,48 @@ export async function processIntakeLeads(): Promise<{ success: boolean; count: n
   }
 }
 
+// ---------- fast order-status poll (admin change → telecaller in ~2s) ----------
+const STATUS_CURSOR_PREFIX = 'crm_status_cursor_';
+
+async function pollOrderStatus(userId: string) {
+  if (!navigator.onLine) return;
+  if (typeof document === 'undefined' || document.visibilityState === 'hidden') return;
+  if (!getToken()) return;
+  try {
+    const since = localStorage.getItem(STATUS_CURSOR_PREFIX + userId) || undefined;
+    const res = await api.orderStatus(since);
+    if (res.rows && res.rows.length > 0) {
+      suppressHooksDepth++;
+      try {
+        for (const r of res.rows) {
+          const localId = await getLocalIdByCloud('orders', Number(r.id));
+          if (localId == null) continue;
+          const orderPatch: any = { status: r.status, updatedAt: r.updatedAt };
+          if (r.deliveredAt) orderPatch.deliveredAt = r.deliveredAt;
+          await db.orders.update(localId, orderPatch);
+          const order = await db.orders.get(localId);
+          // Mirror the linked lead + customer central status exactly like
+          // syncOrderToCentralStatus() does on the writer side, so Lead Center
+          // and Customer Timeline agree within seconds too.
+          if (order?.leadId) {
+            await db.leads.update(order.leadId, { status: r.status as any, updatedAt: r.updatedAt });
+          }
+          if (order?.customerId) {
+            await db.customers.update(order.customerId, { currentStatus: r.status as any, updatedAt: r.updatedAt });
+          }
+        }
+      } finally {
+        suppressHooksDepth--;
+      }
+    }
+    if (res.serverTime) localStorage.setItem(STATUS_CURSOR_PREFIX + userId, res.serverTime);
+  } catch { /* transient network issue — next tick retries */ }
+}
+
 // ---------- lifecycle ----------
 let started = false;
 let intervalId: any = null;
+let statusIntervalId: any = null;
 
 function kick() { void processQueue(); }
 
@@ -454,19 +493,37 @@ export async function startOnlineSync(): Promise<void> {
     setSyncStatus({ syncing: false, online: true });
   }
 
-  // Realtime was replaced by periodic polling (30s) — Supabase Realtime
-  // does not exist on D1. Cloud changes arrive on the next tick.
+  // Realtime was replaced by periodic polling — Supabase Realtime does not
+  // exist on D1. Cloud changes arrive on the next tick. The main delta pull
+  // now runs every 15s (cheap: only rows changed since the last watermark +
+  // tombstones) and the lightweight /api/orders/status poll below pushes
+  // order status changes (Delivered/RTO/Cancelled) to every device in ~2s.
   intervalId = setInterval(async () => {
     await processQueue();
-    // Delta pull — only rows changed since the last watermark (+ tombstones).
     await pullFromCloud(activeUserId(), false);
     await processIntakeLeads();
-  }, 30000);
+  }, 15000);
+
+  // Fast status poll — the critical path: admin changes an order status and
+  // the telecaller's My Orders reflects it within ~2 seconds. Idempotent with
+  // the main pull (same fields, just faster + lighter).
+  statusIntervalId = setInterval(() => void pollOrderStatus(activeUserId()), 2000);
+
+  // Refetch immediately when the app/tab becomes visible again.
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      void processQueue();
+      void pullFromCloud(activeUserId(), false);
+      void pollOrderStatus(activeUserId());
+    }
+  });
 }
 
 export function stopOnlineSync(): void {
   started = false;
   if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  if (statusIntervalId) { clearInterval(statusIntervalId); statusIntervalId = null; }
+  try { localStorage.removeItem(STATUS_CURSOR_PREFIX + activeUserId()); } catch { /* noop */ }
 }
 
 export async function syncNow(): Promise<{ online: boolean; pending: number; error?: string }> {

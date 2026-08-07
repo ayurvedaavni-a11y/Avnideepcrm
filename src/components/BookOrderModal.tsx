@@ -7,6 +7,7 @@ import MapPin from 'lucide-react/dist/esm/icons/map-pin'
 import Package from 'lucide-react/dist/esm/icons/package'
 import Calculator from 'lucide-react/dist/esm/icons/calculator'
 import Info from 'lucide-react/dist/esm/icons/info'
+import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { createManualInvoice, calculateGST } from '../db/invoiceEngine';
 import { getGSTConfig, getCompanyConfig } from '../db/settingsEngine';
@@ -48,10 +49,13 @@ export function BookOrderModal({ leadId, onClose }: Props) {
     codCharge: 0,
     paymentMode: 'COD' as 'COD' | 'Prepaid',
     courier: '',
+    specialInstructions: '',
+    orderNotes: '',
     notes: ''
   });
 
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const { isAdmin } = useAuth();
   const [saving, setSaving] = useState(false);
 
   // 4. Initial Load
@@ -170,9 +174,11 @@ export function BookOrderModal({ leadId, onClose }: Props) {
         mobile: formData.mobile,
         alternateNumber: formData.altMobile,
         address: formData.address,
+        landmark: formData.landmark || '',
         city: formData.city,
         state: formData.state,
         pincode: formData.pincode,
+        notes: formData.notes || '',
         currentStatus: 'Order Booked',
         totalOrders: (customer.totalOrders || 0) + 1,
         updatedAt: new Date().toISOString()
@@ -192,6 +198,12 @@ export function BookOrderModal({ leadId, onClose }: Props) {
         product: selectedProduct?.name || formData.productSearch || 'General Item',
         qty: formData.quantity,
         codAmount: totals.finalTotal,
+        discount: formData.discount || 0,
+        deliveryCharge: formData.deliveryCharge || 0,
+        codCharge: formData.codCharge || 0,
+        paymentMode: formData.paymentMode || 'COD',
+        specialInstructions: formData.specialInstructions || '',
+        orderNotes: formData.orderNotes || '',
         status: 'Order Booked',
         orderDate: nowIso,
         bookedBy,
@@ -299,7 +311,17 @@ export function BookOrderModal({ leadId, onClose }: Props) {
             <div className="grid grid-cols-1 gap-4">
               <Input label="Full Name" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Mobile" value={formData.mobile} onChange={v => setFormData({...formData, mobile: v})} />
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Mobile</label>
+                  <input
+                    className="w-full p-3 bg-slate-100 border border-slate-200 rounded-2xl text-sm font-medium"
+                    value={formData.mobile}
+                    readOnly={!isAdmin}
+                    title={!isAdmin ? "🔒 Mobile cannot be changed" : undefined}
+                    tabIndex={-1}
+                  />
+                  {!isAdmin && <p className="text-[9px] text-amber-600 font-bold mt-1 ml-1">🔒 Mobile locked</p>}
+                </div>
                 <Input label="Alt Mobile" value={formData.altMobile} onChange={v => setFormData({...formData, altMobile: v})} />
               </div>
               <Input label="Full Address" value={formData.address} onChange={v => setFormData({...formData, address: v})} multiline />
@@ -370,6 +392,11 @@ export function BookOrderModal({ leadId, onClose }: Props) {
               <div className="grid grid-cols-2 gap-3">
                 <Input label="Delivery" type="number" value={formData.deliveryCharge} onChange={v => setFormData({...formData, deliveryCharge: Number(v)})} />
                 <Input label="COD Charge" type="number" value={formData.codCharge} onChange={v => setFormData({...formData, codCharge: Number(v)})} />
+              </div>
+
+              <div className="space-y-3">
+                <Input label="Special Instructions" value={formData.specialInstructions} onChange={v => setFormData({...formData, specialInstructions: v})} multiline />
+                <Input label="Order Remarks / Notes" value={formData.orderNotes} onChange={v => setFormData({...formData, orderNotes: v})} multiline />
               </div>
 
               {/* Order Summary */}

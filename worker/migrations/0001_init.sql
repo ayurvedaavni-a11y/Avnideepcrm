@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS crm_customers (
   last_order_date TEXT,
   risk_level      TEXT NOT NULL DEFAULT 'Low',
   current_status  TEXT NOT NULL DEFAULT 'New Lead',
+  landmark        TEXT,
+  notes           TEXT,
   created_at      TEXT,
   updated_at      TEXT
 );
@@ -70,11 +72,20 @@ CREATE TABLE IF NOT EXISTS crm_orders (
   product       TEXT,
   qty           REAL NOT NULL DEFAULT 1,
   cod_amount    REAL NOT NULL DEFAULT 0,
+  discount          REAL DEFAULT 0,
+  delivery_charge   REAL DEFAULT 0,
+  cod_charge        REAL DEFAULT 0,
+  payment_mode      TEXT DEFAULT 'COD',
+  special_instructions TEXT,
+  order_notes       TEXT,
   courier       TEXT,
   tracking_id   TEXT,
   status        TEXT NOT NULL DEFAULT 'Order Booked',
   order_date    TEXT,
   shipment_date TEXT,
+  booked_by     TEXT,
+  booked_by_name TEXT,
+  delivered_at  TEXT,
   created_at    TEXT,
   updated_at    TEXT
 );

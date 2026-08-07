@@ -507,10 +507,15 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
     data.assigned_to = String((member as any).id);
     if (!data.assigned_agent) data.assigned_agent = String((member as any).full_name || 'Telecaller');
   }
-  // Telecallers may edit customer ADDRESS/notes fields but never identity or
-  // financial/counter fields (mobile, name, totals, risk, status counters).
+  // TELECALLER CUSTOMER EDIT PERMISSION (enterprise matrix):
+  //  - editable: name, alternate_number, address, landmark, city, state,
+  //    pincode, district, notes  (Req: address/landmark/city/state/pincode/
+  //    alt number/notes/customer remark/customer name)
+  //  - BLOCKED: mobile (identity — kabhi nahi badal sakta), plus all
+  //    financial/counter fields (totals, risk, status counters) jo sirf
+  //    system/admin update karte hain.
   if (user && user.role !== 'admin' && table === 'crm_customers') {
-    for (const p of ['mobile', 'name', 'alternate_number', 'total_orders', 'delivered', 'rto', 'cancelled', 'fake_count', 'total_spend', 'last_order_date', 'risk_level', 'current_status']) {
+    for (const p of ['mobile', 'total_orders', 'delivered', 'rto', 'cancelled', 'fake_count', 'total_spend', 'last_order_date', 'risk_level', 'current_status']) {
       delete data[p];
     }
   }
@@ -529,8 +534,11 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
     }
     if (user && user.role !== 'admin') {
       if (hasId) {
-        // Update path: telecaller cannot modify any fulfilment/identity field.
-        for (const p of ['status', 'courier', 'tracking_id', 'shipment_date', 'cod_amount', 'customer_id', 'lead_id', 'order_id', 'booked_by', 'booked_by_name', 'delivered_at']) {
+        // Update path (enterprise matrix): telecaller kabhi shipment/payment
+        // status, courier, AWB, identity ya ownership fields change nahi kar
+        // sakta — lekin COD AMOUNT edit kar sakta hai (Req 3). Baki pricing
+        // fields (discount/delivery/cod charge) admin-only.
+        for (const p of ['status', 'courier', 'tracking_id', 'shipment_date', 'payment_mode', 'discount', 'delivery_charge', 'cod_charge', 'special_instructions', 'order_notes', 'customer_id', 'lead_id', 'order_id', 'booked_by', 'booked_by_name', 'delivered_at']) {
           delete data[p];
         }
       } else {
@@ -560,6 +568,29 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
   const nowIso = new Date().toISOString();
   if (def.columns.includes('created_at') && data.created_at == null) data.created_at = nowIso;
   if (def.columns.includes('updated_at') && data.updated_at == null) data.updated_at = nowIso;
+  // STATUS-WRITE TIMESTAMP AUTHORITY: whenever a write carries a STATUS change,
+  // stamp updated_at with the SERVER clock. Incremental pulls compare
+  // updated_at > watermark where the watermark is server time (pulledAt); a
+  // client clock running behind the server would push an OLDER timestamp and
+  // the change would be invisible to other devices until the next full pull.
+  // Server-stamping status writes makes every status change newer than any
+  // prior watermark, so Delivered / RTO / Cancelled reach every device on the
+  // very next pull (~2s via the fast /api/orders/status poll).
+  if (def.columns.includes('updated_at')) {
+    const statusField =
+      table === 'crm_orders' || table === 'crm_leads' ? 'status'
+      : table === 'crm_customers' ? 'current_status'
+      : null;
+    if (statusField && data[statusField] !== undefined && data[statusField] !== null) {
+      data.updated_at = new Date().toISOString();
+    }
+  }
+  // delivered_at rides the same server clock so commission windows and the
+  // order row always agree (the earlier rules block stamps it with the CLIENT
+  // timestamp — override it with the authoritative server updated_at).
+  if (table === 'crm_orders' && data.status === 'Delivered') {
+    data.delivered_at = data.updated_at || new Date().toISOString();
+  }
 
   let conflict: string | undefined = typeof body.conflictKey === 'string' ? body.conflictKey : undefined;
   // Only ever interpolate whitelisted conflict targets into SQL — client
@@ -956,6 +987,36 @@ async function handleIntakePending(env: Env, _request: Request, user: Record<str
 }
 
 // ---------------------------------------------------------------------
+// fast order-status sync (admin change reaches telecaller My Orders in ~2s)
+// ---------------------------------------------------------------------
+async function handleOrderStatus(env: Env, _request: Request, user: Record<string, any> | null, url: URL): Promise<Response> {
+  const denied = requireAuth(user);
+  if (denied) return denied;
+  const since = String(url.searchParams.get('since') || '');
+  const isAdmin = user!.role === 'admin';
+  // Admin watches every order; telecallers watch only orders they booked or
+  // whose lead is assigned to them (matches the "My Orders" definition).
+  const where = isAdmin
+    ? (since ? 'WHERE updated_at > ?' : '')
+    : (since
+        ? "WHERE (booked_by = ? OR lead_id IN (SELECT id FROM crm_leads WHERE assigned_to = ?)) AND updated_at > ?"
+        : "WHERE (booked_by = ? OR lead_id IN (SELECT id FROM crm_leads WHERE assigned_to = ?))");
+  const sql = `SELECT id, order_id, status, updated_at, delivered_at FROM crm_orders ${where} ORDER BY updated_at ASC LIMIT 500`;
+  const bind = isAdmin
+    ? (since ? [since] : [])
+    : (since ? [user!.id, user!.id, since] : [user!.id, user!.id]);
+  const res = await env.DB.prepare(sql).bind(...bind).all();
+  const rows = ((res.results || []) as Record<string, any>[]).map((r) => ({
+    id: Number(r.id),
+    orderId: String(r.order_id || ''),
+    status: String(r.status || ''),
+    updatedAt: String(r.updated_at || ''),
+    deliveredAt: r.delivered_at ? String(r.delivered_at) : undefined,
+  }));
+  return json({ rows, serverTime: new Date().toISOString() });
+}
+
+// ---------------------------------------------------------------------
 // router
 // ---------------------------------------------------------------------
 async function dispatch(request: Request, env: Env): Promise<Response> {
@@ -989,6 +1050,7 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
       if (path === '/api/sync/delete' && request.method === 'POST') return handleDelete(env, request, user);
       if (path === '/api/sync/pull' && request.method === 'GET') return handlePull(env, request, user, url);
       if (path === '/api/sync/count' && request.method === 'GET') return handleCount(env, request, user, url);
+      if (path === '/api/orders/status' && request.method === 'GET') return handleOrderStatus(env, request, user, url);
 
       // ---- lead assignment ----
       if (path === '/api/leads/assign' && request.method === 'POST') return handleLeadsAssign(env, request, user);

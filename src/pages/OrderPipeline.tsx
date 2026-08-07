@@ -17,6 +17,7 @@ import Truck from 'lucide-react/dist/esm/icons/truck'
 import Check from 'lucide-react/dist/esm/icons/check'
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
+import Edit2 from 'lucide-react/dist/esm/icons/edit-2'
 import Phone from 'lucide-react/dist/esm/icons/phone'
 import MessageCircle from 'lucide-react/dist/esm/icons/message-circle'
 import Copy from 'lucide-react/dist/esm/icons/copy'
@@ -45,6 +46,7 @@ import { safeFormat } from '../lib/safeFormat';
 import { autoGenerateInvoice, downloadInvoicePDF } from '../db/invoiceEngine';
 import { updateOrderStatus, isShipmentStatus } from '../db/workflow';
 import { Customer360Profile } from '../components/Customer360Profile';
+import { OrderEditModal } from '../components/OrderEditModal';
 import { useAuth } from '../context/AuthContext';
 
 // =====================================================================
@@ -340,7 +342,7 @@ const OrderCard = memo(function OrderCard({ order, customer, lead, stage, onAdva
         {/* Row 2: customer */}
         <div className="mt-2 flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h4 className="font-bold text-slate-800 text-[13px] leading-tight truncate">{customer.name}</h4>
+            <h4 className="font-bold text-slate-800 text-[13px] leading-tight truncate cursor-pointer hover:text-blue-600" onClick={() => onTimeline(order.customerId)}>{customer.name}</h4>
             <a href={`tel:${customer.mobile}`} className="text-[11px] text-slate-500 font-medium flex items-center gap-1 hover:text-blue-600 transition-colors">
               <Phone size={10} /> {customer.mobile}
             </a>
@@ -450,12 +452,59 @@ const OrderCard = memo(function OrderCard({ order, customer, lead, stage, onAdva
 // =====================================================================
 // Mobile order card — large touch-friendly, dedicated action row
 // =====================================================================
-const MobileOrderCard = memo(function MobileOrderCard({ order, customer, lead, onDetail }: {
+// Read-only shipment tracking shown on the telecaller's My Orders card.
+const TRACKING_STEPS = ['Order Booked', 'Packing', 'Packed', 'Ready To Ship', 'Shipped', 'In Transit', 'Out For Delivery', 'Delivered'];
+
+function ShipmentSteps({ status }: { status: string }) {
+  const idx = TRACKING_STEPS.indexOf(status);
+  if (status === 'RTO' || status === 'Cancelled') {
+    return (
+      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2">
+        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${status === 'RTO' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200 text-slate-600'}`}>{status}</span>
+        <span className="text-[10px] text-slate-400 font-medium">Shipment tracking ends here</span>
+      </div>
+    );
+  }
+  if (idx < 0) {
+    return (
+      <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-2">
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700">{status}</span>
+        <span className="text-[10px] text-slate-400 font-medium">Awaiting courier update</span>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2.5 pt-2 border-t border-slate-100">
+      <div className="flex items-center gap-0.5 overflow-x-auto av-scroll-none pb-0.5">
+        {TRACKING_STEPS.map((s, i) => (
+          <div key={s} className="flex items-center gap-0.5 shrink-0">
+            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded-full whitespace-nowrap transition-colors ${
+              i < idx ? 'bg-emerald-100 text-emerald-700'
+              : i === idx ? 'bg-blue-600 text-white shadow-sm'
+              : 'bg-slate-100 text-slate-400'
+            }`}>
+              {s}
+            </span>
+            {i < TRACKING_STEPS.length - 1 && (
+              <span className={`w-1.5 h-px shrink-0 ${i < idx ? 'bg-emerald-300' : 'bg-slate-200'}`} />
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="text-[9px] text-slate-400 font-medium mt-1">Read-only tracking — status updates automatically</p>
+    </div>
+  );
+}
+
+const MobileOrderCard = memo(function MobileOrderCard({ order, customer, lead, onTimeline, onDetail, canInvoice = false, showTracking = false }: {
   order: any; customer: any; lead?: Lead;
   onTimeline: (customerId: number) => void;
   onDetail: (orderId: number) => void;
+  canInvoice?: boolean;
+  showTracking?: boolean;
 }) {
   const handleInvoice = async () => {
+    if (!canInvoice) return;
     let inv = await db.invoices.where('orderId').equals(order.id!).first();
     if (!inv) inv = await autoGenerateInvoice(order.id, 'Admin') || undefined;
     if (inv) downloadInvoicePDF(inv);
@@ -471,7 +520,7 @@ const MobileOrderCard = memo(function MobileOrderCard({ order, customer, lead, o
         </div>
         <div className="mt-2.5 flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h4 className="font-bold text-slate-900 text-[15px] leading-tight">{customer.name}</h4>
+            <h4 className="font-bold text-slate-900 text-[15px] leading-tight cursor-pointer hover:text-blue-600" onClick={() => onTimeline(order.customerId)}>{customer.name}</h4>
             <p className="text-xs text-slate-500 font-medium mt-0.5">{customer.mobile}</p>
           </div>
           <div className="text-right shrink-0">
@@ -494,8 +543,8 @@ const MobileOrderCard = memo(function MobileOrderCard({ order, customer, lead, o
         </div>
       </div>
 
-      {/* Thumb-friendly action row */}
-      <div className="px-3 pb-3 pt-1 grid grid-cols-4 gap-2">
+      {/* Thumb-friendly action row — Invoice is ADMIN-ONLY (hidden for telecallers) */}
+      <div className={`px-3 pb-3 pt-1 grid ${canInvoice ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
         <a href={`tel:${customer.mobile}`} className="flex flex-col items-center gap-0.5 py-2.5 rounded-xl bg-green-50 text-green-700 border border-green-100 active:scale-95 transition-transform">
           <Phone size={18} />
           <span className="text-[10px] font-bold">Call</span>
@@ -504,15 +553,20 @@ const MobileOrderCard = memo(function MobileOrderCard({ order, customer, lead, o
           <MessageCircle size={18} />
           <span className="text-[10px] font-bold">WhatsApp</span>
         </a>
-        <button onClick={handleInvoice} className="flex flex-col items-center gap-0.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 active:scale-95 transition-transform">
-          <FileText size={18} />
-          <span className="text-[10px] font-bold">Invoice</span>
-        </button>
+        {canInvoice && (
+          <button onClick={handleInvoice} className="flex flex-col items-center gap-0.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 active:scale-95 transition-transform">
+            <FileText size={18} />
+            <span className="text-[10px] font-bold">Invoice</span>
+          </button>
+        )}
         <button onClick={() => onDetail(order.id!)} className="flex flex-col items-center gap-0.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 active:scale-95 transition-transform">
           <Eye size={18} />
           <span className="text-[10px] font-bold">Details</span>
         </button>
       </div>
+
+      {/* Read-only shipment tracking (telecaller My Orders) */}
+      {showTracking && <ShipmentSteps status={order.status} />}
     </div>
   );
 });
@@ -652,6 +706,7 @@ function OrderPipelineContent() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
+  const [editOrderId, setEditOrderId] = useState<number | null>(null);
   const [activeChip, setActiveChip] = useState('All');
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [draggingOrderId, setDraggingOrderId] = useState<number | null>(null);
@@ -780,7 +835,7 @@ function OrderPipelineContent() {
     [isAdmin, allLeads]
   );
 
-  const handleViewTimeline = useCallback((customerId: number) => setSelectedCustomerId(customerId), []);
+  const handleViewTimeline = useCallback((customerId: number) => setSelectedCustomerId(customerId), []);
   const handleViewDetail = useCallback((orderId: number) => setDetailOrderId(orderId), []);
 
   // ===== Business logic — unchanged =====
@@ -838,9 +893,7 @@ function OrderPipelineContent() {
       if (!order) return;
       const meta: any = { agentName: profile?.full_name || 'Admin' };
       if (newStatus === 'Shipped' && !order.trackingId) {
-        meta.trackingId = `TRK${Date.now().toString().slice(-8)}`;
         meta.shipmentDate = new Date().toISOString();
-        meta.courier = order.courier || 'Delhivery';
       }
       const r = await updateOrderStatus(orderId, newStatus, meta);
       if (r.changed) {
@@ -920,6 +973,8 @@ function OrderPipelineContent() {
                 lead={leadMap.get(order.leadId!)}
                 onTimeline={handleViewTimeline}
                 onDetail={handleViewDetail}
+                canInvoice={false}
+                showTracking
               />
             ))}
           </div>
@@ -928,7 +983,7 @@ function OrderPipelineContent() {
           <Customer360Profile customerId={selectedCustomerId} isOpen onClose={() => setSelectedCustomerId(null)} />
         )}
         {detailOrderId && (
-          <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} />
+          <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} onEdit={() => setEditOrderId(detailOrderId)} canInvoice={isAdmin} />
         )}
       </div>
     );
@@ -1053,6 +1108,7 @@ function OrderPipelineContent() {
         customerMap={customerMap}
         onTimeline={handleViewTimeline}
         onDetail={handleViewDetail}
+        canInvoice={isAdmin}
       />
 
       {/* Modals */}
@@ -1060,7 +1116,10 @@ function OrderPipelineContent() {
         <Customer360Profile customerId={selectedCustomerId} isOpen={true} onClose={() => setSelectedCustomerId(null)} />
       )}
       {detailOrderId && (
-        <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} />
+        <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} onEdit={() => setEditOrderId(detailOrderId)} canInvoice={isAdmin} />
+      )}
+      {editOrderId && (
+        <OrderEditModal orderId={editOrderId} onClose={() => setEditOrderId(null)} />
       )}
     </div>
   );
@@ -1069,7 +1128,7 @@ function OrderPipelineContent() {
 // =====================================================================
 // Mobile board — status chips + virtualized touch cards
 // =====================================================================
-function MobileBoard({ orders, activeChip, setActiveChip, leadMap, customerMap, onTimeline, onDetail }: {
+function MobileBoard({ orders, activeChip, setActiveChip, leadMap, customerMap, onTimeline, onDetail, canInvoice = true }: {
   orders: any[];
   activeChip: string;
   setActiveChip: (c: string) => void;
@@ -1077,6 +1136,7 @@ function MobileBoard({ orders, activeChip, setActiveChip, leadMap, customerMap, 
   customerMap: Map<number, any>;
   onTimeline: (customerId: number) => void;
   onDetail: (orderId: number) => void;
+  canInvoice?: boolean;
 }) {
   const chipCounts = useMemo(() => {
     const m: Record<string, number> = {};
@@ -1132,6 +1192,7 @@ function MobileBoard({ orders, activeChip, setActiveChip, leadMap, customerMap, 
                   lead={leadMap.get(order.leadId!)}
                   onTimeline={onTimeline}
                   onDetail={onDetail}
+                  canInvoice={canInvoice}
                 />
               </div>
             );
@@ -1164,7 +1225,7 @@ function timelineStyle(action: string): { icon: any; color: string; bg: string; 
   return { icon: Clock, color: 'text-slate-500', bg: 'bg-slate-100', ring: 'ring-slate-200' };
 }
 
-function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () => void }) {
+function OrderDetailModal({ orderId, onClose, onEdit, canInvoice = true }: { orderId: number; onClose: () => void; onEdit?: () => void; canInvoice?: boolean }) {
   const order = useLiveQuery(() => db.orders.get(orderId), [orderId]);
   const customer = useLiveQuery(() => order ? db.customers.get(order.customerId) : undefined, [order]);
   const lead = useLiveQuery(() => (order?.leadId ? db.leads.get(order.leadId) : undefined), [order]);
@@ -1219,7 +1280,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () =
             </div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Tracking / AWB</p>
-              <p className="font-bold text-slate-800 mt-1 text-[13px] font-mono truncate">{order.trackingId || 'N/A'}</p>
+              <p className="font-bold text-slate-800 mt-1 text-[13px] font-mono truncate">{order.trackingId || <span className="text-amber-600 text-[11px]">Tracking ID not assigned yet</span>}</p>
             </div>
           </div>
 
@@ -1287,9 +1348,14 @@ function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () =
           <a href={`https://wa.me/91${customer.mobile}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold text-xs hover:bg-emerald-100 transition active:scale-95">
             <MessageCircle size={15} /> WhatsApp
           </a>
-          <button onClick={() => { const inv = db.invoices.where('orderId').equals(order.id!).first(); inv.then(i => { if (i) downloadInvoicePDF(i); else autoGenerateInvoice(order.id!, 'Admin').then(g => g && downloadInvoicePDF(g)); }); }}
-            className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 font-bold text-xs hover:bg-blue-100 transition active:scale-95">
-            <FileText size={15} /> Invoice
+          {canInvoice && (
+            <button onClick={() => { const inv = db.invoices.where('orderId').equals(order.id!).first(); inv.then(i => { if (i) downloadInvoicePDF(i); else autoGenerateInvoice(order.id!, 'Admin').then(g => g && downloadInvoicePDF(g)); }); }}
+              className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 font-bold text-xs hover:bg-blue-100 transition active:scale-95">
+              <FileText size={15} /> Invoice
+            </button>
+          )}
+          <button onClick={onEdit} className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-100 font-bold text-xs hover:bg-amber-100 transition active:scale-95">
+            <Edit2 size={15} /> Edit
           </button>
           <button onClick={() => { onClose(); }} className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white text-slate-600 border border-slate-200 font-bold text-xs hover:bg-slate-100 transition active:scale-95">
             Close

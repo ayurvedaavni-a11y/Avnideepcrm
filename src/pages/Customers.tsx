@@ -140,7 +140,7 @@ export function Customers() {
       render: (customer: any) => {
         return (
           <div>
-            <div className="font-bold text-slate-800">{customer.name}</div>
+            <div className="font-bold text-slate-800 cursor-pointer hover:text-blue-600" onClick={() => setSelectedCustomerId(customer.id!)}>{customer.name}</div>
             <div className="text-xs text-slate-500 font-medium flex items-center gap-1">
               <Phone size={10} /> {customer.mobile}
             </div>

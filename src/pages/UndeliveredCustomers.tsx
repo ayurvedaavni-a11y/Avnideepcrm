@@ -60,7 +60,7 @@ export function UndeliveredCustomers() {
                 return (
                   <tr key={cust.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
                     <td className="p-4">
-                      <div className="font-bold text-slate-800">{cust.name}</div>
+                      <div className="font-bold text-slate-800 cursor-pointer hover:text-blue-600" onClick={() => setSelectedCustomerId(cust.id!)}>{cust.name}</div>
                       <div className="text-xs text-slate-500 font-medium">{cust.mobile}</div>
                     </td>
                     <td className="p-4 font-medium text-slate-700">

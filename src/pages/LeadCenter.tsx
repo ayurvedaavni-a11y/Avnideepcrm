@@ -271,7 +271,7 @@ export function LeadCenter() {
           if (!customer) return <span className="text-slate-400">Unknown</span>;
           return (
             <div>
-              <div className="font-bold text-slate-800">{customer.name}</div>
+              <div className="font-bold text-slate-800 cursor-pointer hover:text-blue-600" onClick={() => setSelectedCustomerId(lead.customerId)}>{customer.name}</div>
               <div className="text-sm text-slate-500 font-medium">{customer.mobile}</div>
               {customer.riskLevel === 'Fake' && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 bg-red-100 text-red-700 text-[10px] font-bold rounded">

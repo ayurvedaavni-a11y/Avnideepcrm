@@ -53,7 +53,7 @@ export function DeliveredCustomers() {
                 return (
                   <tr key={cust.id} className="border-b border-slate-100 hover:bg-slate-50 transition">
                     <td className="p-4">
-                      <div className="font-bold text-slate-800">{cust.name}</div>
+                      <div className="font-bold text-slate-800 cursor-pointer hover:text-blue-600" onClick={() => setSelectedCustomerId(cust.id!)}>{cust.name}</div>
                       <div className="text-xs text-slate-500 font-medium">{cust.mobile}</div>
                     </td>
                     <td className="p-4 font-medium text-slate-700">
@@ -66,7 +66,7 @@ export function DeliveredCustomers() {
                       {order?.updatedAt ? safeFormat(order.updatedAt, 'dd MMM yyyy') : 'Recently'}
                     </td>
                     <td className="p-4 font-mono text-slate-600">
-                      {order?.trackingId || 'N/A'}
+                      {order?.trackingId || <span className="text-amber-600">Tracking ID not assigned yet</span>}
                     </td>
                     <td className="p-4 font-bold text-slate-600">
                       {cust.totalOrders}

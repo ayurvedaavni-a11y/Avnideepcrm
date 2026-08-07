@@ -27,6 +27,20 @@ export function getToken(): string | null {
   return token;
 }
 
+/** Current signed-in role, decoded straight from the JWT (no network call).
+ *  Used by UI + invoice engine to enforce admin-only features. */
+export function getCurrentRole(): 'admin' | 'telecaller' | null {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
+    if (!raw) return null;
+    const p = raw.split('.')[1];
+    if (!p) return null;
+    const d = JSON.parse(atob(p.replace(/-/g, '+').replace(/_/g, '/')));
+    if (d?.role === 'admin' || d?.role === 'telecaller') return d.role;
+    return null;
+  } catch { return null; }
+}
+
 export function setToken(t: string | null): void {
   token = t;
   if (t) localStorage.setItem(TOKEN_KEY, t);
@@ -135,6 +149,13 @@ export const api = {
   },
   countTable: (table: string) =>
     request<{ count: number }>(`/api/sync/count?table=${encodeURIComponent(table)}`),
+
+  // ---- fast order-status sync (admin change reaches telecaller in ~2s) ----
+  orderStatus: (since?: string) => {
+    let q = '/api/orders/status';
+    if (since) q += `?since=${encodeURIComponent(since)}`;
+    return request<{ rows: Array<{ id: number; orderId: string; status: string; updatedAt: string; deliveredAt?: string }>; serverTime: string }>(q);
+  },
 
   // ---- intake ----
   intakePending: () => request<{ data: any[] }>('/api/intake/pending'),

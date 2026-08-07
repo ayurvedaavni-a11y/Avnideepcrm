@@ -650,6 +650,11 @@ export async function updateOrderStatus(orderId: number, newStatus: string, meta
   if (meta.trackingId != null) update.trackingId = meta.trackingId;
   if (meta.courier != null) update.courier = meta.courier;
   if (meta.shipmentDate != null) update.shipmentDate = meta.shipmentDate;
+  // Authoritative delivery timestamp — mirrors the worker's server-side stamp
+  // on crm_orders.delivered_at so the local row stays consistent with D1 and
+  // the commission windows always agree. Cleared when reverting from Delivered.
+  if (newStatus === 'Delivered') update.deliveredAt = now;
+  if (oldStatus === 'Delivered' && newStatus !== 'Delivered') update.deliveredAt = undefined;
   await db.orders.update(orderId, update);
 
   await syncOrderToCentralStatus(orderId, newStatus, oldStatus);

@@ -8,6 +8,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
+import { Customer360Profile } from '../components/Customer360Profile';
 import { ShipmentTrackingTimeline } from '../components/ShipmentTrackingTimeline';
 import Search from 'lucide-react/dist/esm/icons/search'
 import Eye from 'lucide-react/dist/esm/icons/eye'
@@ -196,6 +197,7 @@ function LogisticsContent() {
 
   // Editing state for inline AWB/Courier
   const [editingShipId, setEditingShipId] = useState<number | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [tempAWB, setTempAWB] = useState('');
   const [tempCourier, setTempCourier] = useState('');
 
@@ -272,7 +274,7 @@ function LogisticsContent() {
           if (!ship.customer) return null;
           return (
             <>
-              <div className="font-medium text-slate-800 text-sm">{ship.customer.name}</div>
+              <div className="font-medium text-slate-800 text-sm cursor-pointer hover:text-blue-600" onClick={() => setSelectedCustomerId(ship.customer.id)}>{ship.customer.name}</div>
               <div className="text-xs text-slate-500 flex items-center gap-1">
                 <Phone size={10} /> {ship.customer.mobile}
               </div>
@@ -373,9 +375,7 @@ function LogisticsContent() {
       if (!order) return;
       const meta: any = { agentName: 'Admin' };
       if (newStatus === 'Shipped' && !order.trackingId) {
-        meta.trackingId = `TRK${Date.now().toString().slice(-8)}`;
         meta.shipmentDate = new Date().toISOString();
-        meta.courier = order.courier || 'Delhivery';
       }
       if (newStatus === 'Delivered' && !order.shipmentDate) {
         meta.shipmentDate = new Date().toISOString();
@@ -554,6 +554,9 @@ function LogisticsContent() {
       {/* Tracking Timeline Modal */}
       {selectedOrderId && (
         <ShipmentTrackingTimeline orderId={selectedOrderId} isOpen={true} onClose={() => setSelectedOrderId(null)} />
+      )}
+      {selectedCustomerId && (
+        <Customer360Profile customerId={selectedCustomerId} isOpen={true} onClose={() => setSelectedCustomerId(null)} />
       )}
     </div>
   );

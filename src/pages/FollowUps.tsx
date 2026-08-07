@@ -499,7 +499,7 @@ const SpaceLLeadCard = memo(function SpaceLLeadCard({ lead, customer, stage, com
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-slate-800 text-sm">{customer.name}</h4>
+                  <h4 className="font-bold text-slate-800 text-sm cursor-pointer hover:text-blue-600" onClick={() => onViewTimeline()}>{customer.name}</h4>
                   {isOverdue && (
                     <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded flex items-center gap-1">
                       <AlertTriangle size={10} /> {daysOverdue}d overdue

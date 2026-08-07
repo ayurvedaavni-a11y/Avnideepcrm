@@ -19,6 +19,8 @@ export interface Customer {
   totalSpend: number;
   lastOrderDate?: string;
   riskLevel: 'Low' | 'Medium' | 'High' | 'Critical' | 'Fake';
+  landmark?: string;
+  notes?: string;
   currentStatus: LeadStatus;
   createdAt: string;
   updatedAt: string;
@@ -93,6 +95,12 @@ export interface Order {
   bookedBy?: string;
   bookedByName?: string;
   /** Set the moment the order reaches 'Delivered' (commission windows). */
+  discount?: number;
+  deliveryCharge?: number;
+  codCharge?: number;
+  paymentMode?: 'COD' | 'Prepaid';
+  specialInstructions?: string;
+  orderNotes?: string;
   deliveredAt?: string;
   createdAt: string;
   updatedAt: string;

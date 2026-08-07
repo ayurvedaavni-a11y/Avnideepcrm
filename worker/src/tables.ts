@@ -18,9 +18,9 @@ export const TABLES: Record<string, TableDef> = {
     dedup: 'mobile',
     columns: [
       'mobile', 'name', 'alternate_number', 'address', 'pincode', 'city',
-      'district', 'state', 'total_orders', 'delivered', 'rto', 'cancelled',
-      'fake_count', 'total_spend', 'last_order_date', 'risk_level',
-      'current_status', 'created_at', 'updated_at',
+      'district', 'state', 'landmark', 'notes', 'total_orders', 'delivered',
+      'rto', 'cancelled', 'fake_count', 'total_spend', 'last_order_date',
+      'risk_level', 'current_status', 'created_at', 'updated_at',
     ],
   },
   crm_leads: {
@@ -34,8 +34,10 @@ export const TABLES: Record<string, TableDef> = {
     dedup: 'order_id',
     columns: [
       'order_id', 'lead_id', 'customer_id', 'product', 'qty', 'cod_amount',
-      'courier', 'tracking_id', 'status', 'order_date', 'shipment_date',
-      'booked_by', 'booked_by_name', 'delivered_at', 'created_at', 'updated_at',
+      'discount', 'delivery_charge', 'cod_charge', 'payment_mode',
+      'special_instructions', 'order_notes', 'courier', 'tracking_id', 'status',
+      'order_date', 'shipment_date', 'booked_by', 'booked_by_name',
+      'delivered_at', 'created_at', 'updated_at',
     ],
   },
   crm_spacel_followups: {
