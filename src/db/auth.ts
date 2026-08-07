@@ -1,7 +1,8 @@
-// src/db/auth.ts — Phone + PIN authentication on top of Supabase Auth.
-// Each team member logs in with a mobile number + PIN. The PIN is the
-// Supabase Auth password of a synthetic email account (<mobile>@telecaller.in).
-import { supabase } from './supabaseClient';
+// src/db/auth.ts — Phone + PIN authentication on the Cloudflare D1 Worker.
+// Same public API as before (loginWithMobilePin, fetchProfile, logout,
+// createTeamMember, listTeamMembers, setMemberActive, setMemberRole,
+// changePin) so pages and AuthContext keep working unchanged.
+import { api, setToken } from './apiClient';
 
 export type TeamRole = 'admin' | 'telecaller';
 
@@ -21,34 +22,15 @@ export function normalizeMobile(mobile: string): string {
   return digits;
 }
 
-/**
- * Synthetic email that maps a mobile number onto Supabase Auth.
- *
- * NOTE: `.crm` is NOT a valid TLD — newer Supabase email validation rejects
- * `@telecaller.crm` signups with `email_address_invalid`. New accounts now use
- * `@telecaller.in` (valid TLD). Existing accounts created on the legacy
- * `@telecaller.crm` domain still work via the fallback in loginWithMobilePin.
- */
-export const EMAIL_DOMAIN = 'telecaller.in';
-export const LEGACY_EMAIL_DOMAIN = 'telecaller.crm';
-
-export function emailForMobile(mobile: string): string {
-  return `${normalizeMobile(mobile)}@${EMAIL_DOMAIN}`;
-}
-
-export function legacyEmailForMobile(mobile: string): string {
-  return `${normalizeMobile(mobile)}@${LEGACY_EMAIL_DOMAIN}`;
-}
-
 export function friendlyAuthError(error: any): string {
   const msg = error?.message || String(error);
   const lower = msg.toLowerCase();
-  if (lower.includes('invalid login credentials')) return 'Mobile number ya PIN galat hai. Dobara try karein.';
-  if (lower.includes('email not confirmed')) return 'Account abhi confirm nahi hua. Admin se contact karein.';
-  if (lower.includes('user already registered')) return 'Is mobile number ka account pehle se maujood hai.';
-  if (lower.includes('signup') && lower.includes('disabled')) return 'Naye signup abhi band hain. Supabase mein Email signup enable karein.';
-  if (lower.includes('rate limit') || lower.includes('too many')) return 'Bahut saare attempts — thodi der baad try karein.';
-  if (lower.includes('network') || lower.includes('fetch')) return 'Internet connection check karein.';
+  if (lower.includes('galat') || lower.includes('invalid login')) return 'Mobile number ya PIN galat hai. Dobara try karein.';
+  if (lower.includes('account active nahi')) return 'Account active nahi hai. Admin se contact karein.';
+  if (lower.includes('bahut saare') || lower.includes('rate limit') || lower.includes('too many')) return 'Bahut saare attempts — thodi der baad try karein.';
+  if (lower.includes('pehle se maujood') || lower.includes('already registered')) return 'Is mobile number ka account pehle se maujood hai.';
+  if (lower.includes('unauthorized') || lower.includes('session expire') || msg.includes('401')) return 'Session expire ho gaya — dobara login karein.';
+  if (lower.includes('internet') || lower.includes('network') || lower.includes('failed to fetch')) return 'Internet connection check karein.';
   return msg;
 }
 
@@ -60,91 +42,154 @@ export interface LoginResult {
 }
 
 export async function loginWithMobilePin(mobile: string, pin: string): Promise<LoginResult> {
-  // Try the current domain first, then fall back to the legacy `.crm` domain
-  // so accounts created before the domain fix keep working.
-  const candidates = [emailForMobile(mobile), legacyEmailForMobile(mobile)];
-  let lastError: any = null;
-  let data: any = null;
-  let error: any = null;
-  for (const email of candidates) {
-    const attempt = await supabase.auth.signInWithPassword({ email, password: pin.trim() });
-    if (!attempt.error && attempt.data?.user) {
-      data = attempt.data;
-      error = null;
-      break;
-    }
-    lastError = attempt.error;
+  try {
+    const res = await api.login(normalizeMobile(mobile), pin.trim());
+    setToken(res.token);
+    return { ok: true, profile: res.profile, user: res.user };
+  } catch (e: any) {
+    return { ok: false, error: friendlyAuthError(e) };
   }
-  if (error || !data?.user) {
-    return { ok: false, error: friendlyAuthError(lastError) };
-  }
-  const profile = await fetchProfile(data.user.id);
-  if (!profile) {
-    return { ok: false, error: 'Account profile nahi mila. Admin se contact karein.' };
-  }
-  if (!profile.is_active) {
-    return { ok: false, error: 'Account active nahi hai. Admin se contact karein.' };
-  }
-  return { ok: true, profile, user: data.user };
 }
 
-export async function fetchProfile(userId?: string | null): Promise<TeamProfile | null> {
-  let uid = userId;
-  if (!uid) {
-    const { data } = await supabase.auth.getUser();
-    uid = data.user?.id;
+/** Restore the current user's profile from the stored JWT (via /api/auth/me). */
+export async function fetchProfile(_userId?: string | null): Promise<TeamProfile | null> {
+  try {
+    const me = await api.me();
+    return me.profile;
+  } catch {
+    return null;
   }
-  if (!uid) return null;
-  const { data, error } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-  if (error || !data) return null;
-  return data as TeamProfile;
 }
 
 export async function logout(): Promise<void> {
-  await supabase.auth.signOut();
+  try {
+    await api.logout();
+  } catch {
+    /* offline or worker down — token is cleared regardless */
+  } finally {
+    setToken(null);
+  }
 }
 
-/** Create a team member (admin only — Team page). SignUp metadata drives the DB trigger. */
+/** Create a team member (admin only — Team page). */
 export async function createTeamMember(
   name: string,
   mobile: string,
   pin: string,
   role: TeamRole
 ): Promise<{ ok: boolean; error?: string; userId?: string }> {
-  const normMobile = normalizeMobile(mobile);
-  const { data, error } = await supabase.auth.signUp({
-    email: emailForMobile(normMobile),
-    password: pin.trim(),
-    options: { data: { full_name: name, mobile: normMobile, role } },
-  });
-  if (error) return { ok: false, error: friendlyAuthError(error) };
-  return { ok: true, userId: data.user?.id };
+  try {
+    const res = await api.register(name, normalizeMobile(mobile), pin.trim(), role);
+    clearTeamCache(); // force a fresh team list next time
+    return { ok: true, userId: res.userId };
+  } catch (e: any) {
+    return { ok: false, error: friendlyAuthError(e) };
+  }
+}
+
+/** localStorage cache of the team list — lets Lead Center / assignment work
+ *  even when the Worker is unreachable (offline / brief network failure).
+ *  Refreshed on every successful fetch; invalidated on member mutations.
+ *  Expires after 7 days so deleted/renamed members don't linger forever. */
+const TEAM_CACHE_KEY = 'crm_team_cache';
+const TEAM_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+interface TeamCacheEntry {
+  cachedAt: number;
+  members: TeamProfile[];
+}
+
+function readTeamCache(): TeamProfile[] {
+  try {
+    const raw = localStorage.getItem(TEAM_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as TeamCacheEntry;
+    if (!parsed || !Array.isArray(parsed.members)) return [];
+    if (Date.now() - parsed.cachedAt > TEAM_CACHE_TTL_MS) return [];
+    return parsed.members;
+  } catch {
+    return [];
+  }
+}
+
+function writeTeamCache(members: TeamProfile[]) {
+  try {
+    localStorage.setItem(TEAM_CACHE_KEY, JSON.stringify({ cachedAt: Date.now(), members }));
+  } catch {
+    /* storage full / disabled — cache is best-effort */
+  }
+}
+
+export function clearTeamCache(): void {
+  try {
+    localStorage.removeItem(TEAM_CACHE_KEY);
+  } catch {
+    /* noop */
+  }
 }
 
 export async function listTeamMembers(): Promise<TeamProfile[]> {
-  const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
-  if (error || !data) return [];
-  return data as TeamProfile[];
+  try {
+    const members = (await api.listTeam()) as TeamProfile[];
+    writeTeamCache(members);
+    return members;
+  } catch {
+    // Worker unreachable — fall back to the last known team list so the
+    // admin can still assign leads to telecallers offline.
+    return readTeamCache();
+  }
 }
 
 export async function setMemberActive(id: string, isActive: boolean) {
-  const { error } = await supabase.from('profiles').update({ is_active: isActive }).eq('id', id);
-  return { ok: !error, error: error?.message };
+  try {
+    await api.setMember(id, { is_active: isActive });
+    clearTeamCache();
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: friendlyAuthError(e) };
+  }
+}
+
+export async function deleteMember(id: string) {
+  try {
+    await api.deleteMember(id);
+    clearTeamCache();
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: friendlyAuthError(e) };
+  }
 }
 
 export async function setMemberRole(id: string, role: TeamRole) {
-  const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
-  return { ok: !error, error: error?.message };
+  try {
+    await api.setMember(id, { role });
+    clearTeamCache();
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: friendlyAuthError(e) };
+  }
+}
+
+/** Admin resets another member's login PIN (no current-PIN check needed). */
+export async function resetMemberPin(id: string, newPin: string): Promise<{ ok: boolean; error?: string }> {
+  const pin = newPin.trim();
+  if (!/^\d{6,8}$/.test(pin)) {
+    return { ok: false, error: 'PIN 6-8 digits ka hona chahiye' };
+  }
+  try {
+    await api.setMember(id, { pin });
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: friendlyAuthError(e) };
+  }
 }
 
 /** Change own PIN (verify current PIN first, then set new one). */
 export async function changePin(currentPin: string, newPin: string): Promise<{ ok: boolean; error?: string }> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const email = sessionData.session?.user?.email;
-  if (!email) return { ok: false, error: 'Session nahi mila — login karein.' };
-  const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: currentPin.trim() });
-  if (verifyError) return { ok: false, error: 'Current PIN galat hai.' };
-  const { error } = await supabase.auth.updateUser({ password: newPin.trim() });
-  if (error) return { ok: false, error: friendlyAuthError(error) };
-  return { ok: true };
+  try {
+    await api.changePin(currentPin, newPin);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: friendlyAuthError(e) };
+  }
 }

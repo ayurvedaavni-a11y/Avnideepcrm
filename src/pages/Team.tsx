@@ -4,7 +4,11 @@ import Users from 'lucide-react/dist/esm/icons/users'
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
 import Power from 'lucide-react/dist/esm/icons/power'
-import { createTeamMember, listTeamMembers, setMemberActive, setMemberRole } from '../db/auth';
+
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
+import KeyRound from 'lucide-react/dist/esm/icons/key-round'
+import X from 'lucide-react/dist/esm/icons/x'
+import { createTeamMember, deleteMember, listTeamMembers, resetMemberPin, setMemberActive, setMemberRole } from '../db/auth';
 import type { TeamProfile } from '../db/auth';
 import { useAuth } from '../context/AuthContext';
 
@@ -18,6 +22,9 @@ export function Team() {
   const [role, setRole] = useState<'telecaller' | 'admin'>('telecaller');
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pinResetMember, setPinResetMember] = useState<TeamProfile | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -58,6 +65,49 @@ export function Team() {
       await load();
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const handleDelete = async (m: TeamProfile) => {
+
+    if (m.id === profile?.id) return;
+
+    if (!window.confirm(`${m.full_name} (${m.mobile}) ko DELETE karna hai? Ye member turant logout ho jayega aur login nahi kar payega.`)) return;
+
+    setBusyId(m.id);
+
+    try {
+
+      const res = await deleteMember(m.id);
+
+      if (!res.ok) toast.error(res.error || 'Delete fail hua');
+
+      else toast.success(`${m.full_name} delete ho gaya`);
+
+      await load();
+
+    } finally {
+
+      setBusyId(null);
+
+    }
+
+  };
+
+
+
+  const handlePinReset = async () => {
+    if (!pinResetMember || pinBusy) return;
+    if (!/^\d{6,8}$/.test(newPin.trim())) { toast.error('PIN 6-8 digits ka hona chahiye'); return; }
+    setPinBusy(true);
+    try {
+      const res = await resetMemberPin(pinResetMember.id, newPin.trim());
+      if (!res.ok) { toast.error(res.error || 'PIN change nahi hua'); return; }
+      toast.success(`${pinResetMember.full_name} ka PIN change ho gaya!`);
+      setPinResetMember(null);
+      setNewPin('');
+    } finally {
+      setPinBusy(false);
     }
   };
 
@@ -119,7 +169,7 @@ export function Team() {
             className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg font-bold flex items-center gap-2 transition shadow-sm">
             <UserPlus size={16} /> {creating ? 'Creating…' : 'Create Account'}
           </button>
-          <p className="text-xs text-slate-400">Note: Supabase dashboard mein "Authentication → Sign In / Up → Email" mein "Confirm email" OFF hona chahiye. Details guide mein hain.</p>
+          <p className="text-xs text-slate-400">Note: Naye member ka account turant active hota hai. PIN 6-8 digits ka hona chahiye.</p>
         </div>
       </div>
 
@@ -170,6 +220,16 @@ export function Team() {
                         className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition disabled:opacity-40 disabled:cursor-not-allowed">
                         <Power size={16} />
                       </button>
+                      <button onClick={() => { setNewPin(''); setPinResetMember(m); }} disabled={busyId === m.id}
+                        title="PIN Change Karein"
+                        className="p-2 rounded-lg text-amber-500 hover:bg-amber-50 hover:text-amber-600 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <KeyRound size={16} />
+                      </button>
+                      <button onClick={() => handleDelete(m)} disabled={m.id === profile?.id || busyId === m.id}
+                        title="Delete"
+                        className="p-2 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -178,6 +238,50 @@ export function Team() {
           </div>
         )}
       </div>
+
+      {/* Change PIN modal */}
+      {pinResetMember && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <KeyRound className="text-amber-500" size={18} /> PIN Change
+              </h2>
+              <button onClick={() => setPinResetMember(null)} className="p-1 hover:bg-slate-100 rounded-full">
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-600">
+                <span className="font-bold">{pinResetMember.full_name}</span> ({pinResetMember.mobile || '—'}) ka naya login PIN daalein.
+                Is PIN se woh login karega.
+              </p>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Naya PIN (6-8 digits)</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={8}
+                  value={newPin}
+                  onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="••••••"
+                  autoFocus
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition"
+                />
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+              <button onClick={() => setPinResetMember(null)} className="px-5 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-200 transition">
+                Cancel
+              </button>
+              <button onClick={handlePinReset} disabled={pinBusy || !newPin.trim()}
+                className="px-5 py-2 rounded-lg font-bold text-white bg-amber-600 hover:bg-amber-700 transition disabled:opacity-60">
+                {pinBusy ? 'Change ho raha hai…' : 'PIN Change Karein'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

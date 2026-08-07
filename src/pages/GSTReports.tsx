@@ -167,7 +167,7 @@ export function GSTReports() {
         <div className="flex gap-2">
           <button 
             onClick={async () => {
-              const t = toast.loading('Syncing with Supabase...');
+              const t = toast.loading('Syncing with Cloud...');
               const res = await (await import('../db/onlineSync')).syncNow();
               toast.dismiss(t);
               if (res.online) {

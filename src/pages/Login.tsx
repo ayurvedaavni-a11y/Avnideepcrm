@@ -195,7 +195,7 @@ export function Login({ onContinueOffline }: Props) {
             </form>
 
             <p className="text-center text-[11px] text-slate-600 mt-6">
-              Login ke baad role verify hota hai — galat role se access nahi milega. Data Supabase cloud par securely sync hota hai
+              Login ke baad role verify hota hai — galat role se access nahi milega. Data Cloudflare D1 cloud par securely sync hota hai
             </p>
           </div>
         )}

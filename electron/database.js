@@ -208,6 +208,35 @@ function runSchemaMigrations() {
     `);
     db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(3, new Date().toISOString());
   }
+
+  if (currentVersion < 4) {
+    // Telecaller CRM fields (Dexie v13) — mirror the app's Lead model so
+    // assignments + call/reminder data persist in SQLite across restarts.
+    // Without these columns, hydrated Dexie rows lose assignedTo on every boot
+    // and the write-through UPDATE throws "no such column".
+    // Each ALTER is guarded by a table_info check and runs inside a
+    // transaction, so a partially-applied migration can never crash the
+    // next boot with "duplicate column name".
+    const leadCols = new Set(
+      db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name)
+    );
+    const leadAdds = [
+      ['assignedTo', 'TEXT'],
+      ['assignedAt', 'TEXT'],
+      ['callCount', 'INTEGER DEFAULT 0'],
+      ['firstCallAt', 'TEXT'],
+      ['lastCallAt', 'TEXT'],
+      ['reminderDate', 'TEXT'],
+      ['reminderTime', 'TEXT'],
+      ['reminderReason', 'TEXT'],
+    ];
+    db.transaction(() => {
+      for (const [col, def] of leadAdds) {
+        if (!leadCols.has(col)) db.exec(`ALTER TABLE leads ADD COLUMN ${col} ${def}`);
+      }
+    })();
+    db.prepare('INSERT INTO schema_version (version, applied_at) VALUES (?, ?)').run(4, new Date().toISOString());
+  }
 }
 
 const allowedTables = ['customers','leads','followups','orders','logistics','ndr_cases',

@@ -1,0 +1,29 @@
+# =====================================================================
+# AVNIDEEP CRM PRO — Cloudflare Worker (NEW account only!)
+#
+# NOTE: This worker + D1 database belong to the NEW Cloudflare account,
+# NOT the old store account. Before deploying:
+#   1. wrangler login                     (browser login to the NEW account)
+#   2. wrangler d1 create avnideep-crm    (prints a database_id)
+#   3. paste that database_id below
+#   4. wrangler secret put AUTH_SECRET
+#      wrangler secret put BOOTSTRAP_KEY
+#      wrangler secret put INTAKE_KEY
+# =====================================================================
+name = "avnideep-crm-api"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+account_id = "b47dcac070b4d641981d3e6d9b300294"
+
+[observability]
+enabled = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "avnideep-crm"
+# REPLACE with the database_id printed by: wrangler d1 create avnideep-crm
+database_id = "996e0545-5fe2-439f-b4ab-91540f604e57"
+
+[vars]
+# Local/dev fallbacks only — in production use `wrangler secret put` for these.
+PBKDF2_ITERATIONS = "15000"

@@ -58,6 +58,12 @@ export async function hydrateFromSQLite() {
       if (res?.ok && Array.isArray(res.data) && res.data.length > 0) {
         const table = (db as any)[dexieName];
         if (!table) continue;
+        // Snapshot the CURRENT Dexie rows BEFORE clearing. IndexedDB persists
+        // across restarts, so it may hold fields that the SQLite table lacks
+        // (e.g. leads.assignedTo on databases created before the v4 migration
+        // added the columns). We preserve those so assignments survive boot.
+        const priorRows = await table.toArray();
+        const priorById = new Map((priorRows as any[]).map((r: any) => [Number(r.id), r]));
         // Replace local Dexie cache with SQLite truth
         await table.clear();
         // Map row data, parsing JSON-encoded fields
@@ -70,6 +76,14 @@ export async function hydrateFromSQLite() {
           // Convert booleans
           if (sqliteName === 'notifications' && typeof out.isRead === 'number') {
             out.isRead = out.isRead === 1;
+          }
+          // Keep fields that SQLite doesn't carry — SQLite wins on shared keys,
+          // prior Dexie fills the gaps (assignments, call counters, reminders).
+          const prior = priorById.get(Number(row.id));
+          if (prior) {
+            for (const [k, v] of Object.entries(prior)) {
+              if (out[k] === undefined && v !== undefined) out[k] = v;
+            }
           }
           return out;
         });

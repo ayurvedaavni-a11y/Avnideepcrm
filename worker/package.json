@@ -1,0 +1,19 @@
+{
+  "name": "avnideep-crm-api",
+  "private": true,
+  "version": "1.0.0",
+  "description": "AVNIDEEP CRM PRO online API — Cloudflare Worker + D1 (new account)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "migrate:local": "wrangler d1 execute avnideep-crm --local --file=./migrations/0001_init.sql",
+    "migrate:remote": "wrangler d1 execute avnideep-crm --remote --file=./migrations/0001_init.sql",
+    "db:create": "wrangler d1 create avnideep-crm"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260801.1",
+    "typescript": "^5.5.4",
+    "wrangler": "^4.0.0"
+  }
+}

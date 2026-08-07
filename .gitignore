@@ -27,3 +27,9 @@ Thumbs.db
 .vercel
 .vercel
 .vite/
+
+# Cloudflare Worker (D1 migration)
+worker/node_modules/
+worker/.wrangler/
+worker/.dev.vars
+worker/package-lock.json

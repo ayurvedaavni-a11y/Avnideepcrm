@@ -1,7 +1,7 @@
 // AuthContext — provides the logged-in team member (session + role) to the whole app.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { supabase } from '../db/supabaseClient';
+import { getToken, setUnauthorizedHandler } from '../db/apiClient';
 import { fetchProfile, loginWithMobilePin, logout as signOut } from '../db/auth';
 import type { TeamProfile, TeamRole } from '../db/auth';
 
@@ -30,15 +30,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<TeamProfile | null>(null);
 
+  // Any 401 (blocked/deleted user, expired JWT) instantly logs out the UI.
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null);
+      setProfile(null);
+    });
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  // Session restore: the JWT is stored in localStorage. /api/auth/me
+  // validates it and returns the profile (invalid tokens are cleared).
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (data.session && mounted) {
-          setUser(data.session.user);
-          const p = await fetchProfile(data.session.user.id);
-          if (mounted) setProfile(p);
+        if (getToken()) {
+          const p = await fetchProfile();
+          if (!mounted) return;
+          if (p) {
+            setUser({ id: p.id, email: `${p.mobile}@crm.local` });
+            setProfile(p);
+          }
         }
       } catch (e) {
         console.error('[Auth] session restore failed:', e);
@@ -46,14 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (mounted) setLoading(false);
       }
     })();
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (!session) setProfile(null);
-    });
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
     };
   }, []);
 

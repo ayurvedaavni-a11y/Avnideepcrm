@@ -1,12 +1,14 @@
 // =====================================================================
 // onlineSync.ts — Bidirectional multi-user sync engine
-// Local (Dexie) stays the reactive cache; Supabase is the shared source
-// of truth. Every local write is queued and pushed to Supabase; every
-// cloud change (from any team member) flows back via Realtime + periodic
-// refresh. Local int ids are mapped to cloud BIGSERIAL ids in syncMap.
+// Local (Dexie) stays the reactive cache; the Cloudflare D1 Worker is the
+// shared source of truth. Every local write is queued and pushed via the
+// Worker API; every cloud change (from any team member) flows back via a
+// 30-second refresh (Supabase Realtime was replaced by polling — the
+// periodic pull already existed and is now the only refresh path).
+// Local int ids are mapped to cloud INTEGER ids in syncMap.
 // =====================================================================
 import { db } from './db';
-import { supabase } from './supabaseClient';
+import { api } from './apiClient';
 import { setSyncStatus } from './syncStatus';
 
 // ---------- table config ----------
@@ -117,8 +119,7 @@ async function processEntry(entry: any) {
   if (entry.action === 'delete') {
     const cloudId = await getCloudId(cfg.dexie, entry.localId);
     if (cloudId != null) {
-      const { error } = await supabase.from(cfg.cloud).delete().eq('id', cloudId);
-      if (error) throw error;
+      await api.deleteRow(cfg.cloud, cloudId);
     }
     await deleteMapByLocal(cfg.dexie, entry.localId);
     return;
@@ -147,16 +148,14 @@ async function processEntry(entry: any) {
   }
 
   let cloudId = await getCloudId(cfg.dexie, local.id);
-  let result;
-  // Leads enrichment: the live crm_leads table has customer_name + mobile as
-  // NOT NULL columns. Local leads only carry customerId, so look up the local
-  // customer (by LOCAL id, not cloud id) and attach its name/mobile — otherwise
-  // every push fails with 400 and leads never reach the cloud.
+  let result: { id?: number | string | null };
+  // Leads enrichment: the crm_leads table has customer_name + mobile as
+  // NOT NULL columns. Local leads only carry customerId, so look up the
+  // local customer (by LOCAL id, not cloud id) and attach its name/mobile —
+  // otherwise every push fails and leads never reach the cloud.
   if (entry.table === 'leads' && local.customerId) {
     const customer = await db.customers.get(Number(local.customerId) || 0);
     if (customer) {
-      // Only overwrite with truthy values so a stale/empty local customer
-      // record never blanks out a good cloud name/mobile.
       if (customer.name) cloudRow.customer_name = customer.name;
       if (customer.mobile) cloudRow.mobile = customer.mobile;
     }
@@ -165,15 +164,13 @@ async function processEntry(entry: any) {
   if (cloudRow.mobile == null) cloudRow.mobile = '';
 
   if (cloudId != null) {
-    cloudRow.id = cloudId;
-    result = await supabase.from(cfg.cloud).upsert(cloudRow, { onConflict: 'id' }).select('id').single();
+    result = await api.pushRow(cfg.cloud, { ...cloudRow, id: cloudId }, 'id');
   } else if (cfg.dedup && cloudRow[camelToSnake(cfg.dedup)]) {
-    result = await supabase.from(cfg.cloud).upsert(cloudRow, { onConflict: camelToSnake(cfg.dedup) }).select('id').single();
+    result = await api.pushRow(cfg.cloud, cloudRow, camelToSnake(cfg.dedup));
   } else {
-    result = await supabase.from(cfg.cloud).insert(cloudRow).select('id').single();
+    result = await api.pushRow(cfg.cloud, cloudRow);
   }
-  if (result.error) throw result.error;
-  if (result.data?.id != null) await setMap(cfg.dexie, local.id, Number(result.data.id));
+  if (result?.id != null) await setMap(cfg.dexie, local.id, Number(result.id));
 }
 
 async function processQueue() {
@@ -212,6 +209,12 @@ async function applyRemoteRow(key: string, cloudRow: Record<string, any>, deferr
   for (const [ck, cv] of Object.entries(cloudRow)) {
     const camel = snakeToCamel(ck);
     if (camel === 'id') { cloudId = Number(cv) || 0; continue; }
+    // Never let a NULL cloud value wipe a LOCAL assignment that may not have
+    // reached the cloud yet (offline / pending push). Cloud wins only when it
+    // actually carries a value. An explicit '' (un-assignment) still propagates.
+    if ((camel === 'assignedTo' || camel === 'assignedAgent') && cv == null) {
+      continue;
+    }
     let v = cv;
     const fkParent = cfg.fks
       ? Object.entries(cfg.fks).find(([localFk]) => camelToSnake(localFk) === ck)
@@ -251,11 +254,11 @@ export async function pullAllFromCloud(): Promise<{ ok: boolean; error?: string 
   suppressHooksDepth++;
   try {
     const deferred: DeferredRow[] = [];
+    const cloudNames = ORDERED_KEYS.map((k) => SYNC_TABLES[k].cloud);
+    const { rows } = await api.pullAll(cloudNames);
     for (const key of ORDERED_KEYS) {
       const cfg = SYNC_TABLES[key];
-      const { data, error } = await supabase.from(cfg.cloud).select('*').order('id', { ascending: true });
-      if (error) throw error;
-      for (const row of data || []) await applyRemoteRow(key, row, deferred);
+      for (const row of rows[cfg.cloud] || []) await applyRemoteRow(key, row, deferred);
     }
     // retry orphaned rows (missing parents) a few times
     for (let pass = 0; pass < 3 && deferred.length > 0; pass++) {
@@ -280,109 +283,57 @@ async function exportLocalIfCloudEmpty() {
     const cfg = SYNC_TABLES[key];
     const localCount = await (db as any)[key].count();
     if (!localCount) continue;
-    const { count } = await supabase.from(cfg.cloud).select('*', { count: 'exact', head: true });
+    const { count } = await api.countTable(cfg.cloud);
     if (count) continue; // cloud already has data — skip
     const rows = await (db as any)[key].toArray();
     for (const r of rows) await enqueue(key, 'insert', r.id, r);
   }
   await processQueue();
 }
-// ---------- realtime (live updates from other team members) ----------
-let channel: any = null;
 
-function startRealtime() {
-  if (channel) return;
-  channel = supabase
-    .channel('crm-sync-live')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public' }, (payload: any) => { void handleRemoteChange(payload); })
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public' }, (payload: any) => { void handleRemoteChange(payload); })
-    .on('postgres_changes', { event: 'DELETE', schema: 'public' }, (payload: any) => { void handleRemoteDelete(payload); })
-    .subscribe();
-}
-
-async function handleRemoteChange(payload: any) {
-  const key = ORDERED_KEYS.find((k) => SYNC_TABLES[k].cloud === payload.table);
-  if (!key || !payload.new) return;
-  suppressHooksDepth++;
-  try {
-    const deferred: DeferredRow[] = [];
-    await applyRemoteRow(key, payload.new, deferred);
-    if (deferred.length) {
-      // parent missing right now — retry shortly
-      setTimeout(() => {
-        suppressHooksDepth++;
-        applyRemoteRow(key, payload.new, []).finally(() => { suppressHooksDepth--; });
-      }, 3000);
-    }
-  } finally {
-    suppressHooksDepth--;
-  }
-  setSyncStatus({ lastSyncAt: new Date().toISOString() });
-}
-
-async function handleRemoteDelete(payload: any) {
-  const key = ORDERED_KEYS.find((k) => SYNC_TABLES[k].cloud === payload.table);
-  if (!key || payload.old == null) return;
-  const cloudId = Number(payload.old.id);
-  const localId = await getLocalIdByCloud(key, cloudId);
-  if (localId == null) return;
-  suppressHooksDepth++;
-  try {
-    await (db as any)[key].delete(localId);
-  } finally {
-    suppressHooksDepth--;
-  }
-  await db.syncMap.where('[localTable+cloudId]').equals([key, cloudId]).delete();
-}
-
-// ---------- landing-page intake (legacy public `leads` table) ----------
+// ---------- landing-page intake (public `leads` table via the Worker) ----------
 export async function processIntakeLeads(): Promise<{ success: boolean; count: number; error?: string }> {
   if (!navigator.onLine) return { success: false, count: 0, error: 'offline' };
   try {
-    const { data: pending, error } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('sync_status', 'pending')
-      .order('created_at', { ascending: true });
-    if (error) throw error;
+    const { data: pending } = await api.intakePending();
     let count = 0;
     for (const lead of pending || []) {
       try {
         const mobile = String(lead.mobile || '').replace(/\D/g, '');
-        const custUpsert = await supabase.from('crm_customers')
-          .upsert({
-            mobile, name: lead.name || 'Lead',
-            address: lead.address, city: lead.city, state: lead.state, pincode: lead.pincode,
-            total_orders: 0, delivered: 0, rto: 0, cancelled: 0, fake_count: 0, total_spend: 0,
-            risk_level: 'Low', current_status: 'Order Booked',
-            created_at: lead.created_at ? new Date(lead.created_at).toISOString() : new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }, { onConflict: 'mobile' })
-          .select('id').single();
-        if (custUpsert.error) throw custUpsert.error;
-        const cloudCustomerId = Number(custUpsert.data.id);
+        const custUpsert = await api.pushRow('crm_customers', {
+          mobile, name: lead.name || 'Lead',
+          address: lead.address, city: lead.city, state: lead.state, pincode: lead.pincode,
+          total_orders: 0, delivered: 0, rto: 0, cancelled: 0, fake_count: 0, total_spend: 0,
+          risk_level: 'Low', current_status: 'Order Booked',
+          created_at: lead.created_at ? new Date(lead.created_at).toISOString() : new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, 'mobile');
+        const cloudCustomerId = Number(custUpsert.id);
 
-        const leadIns = await supabase.from('crm_leads').insert({
+        await api.pushRow('crm_leads', {
           customer_id: cloudCustomerId,
           product: lead.product || 'Inquiry',
           source: lead.source || 'Landing Page',
           expected_amount: Number(lead.amount) || 0,
           priority: 'High', status: 'Order Booked', assigned_agent: 'Auto Sync',
-          notes: `Supabase ID: ${lead.id} | Mode: ${lead.payment_mode || 'COD'}`,
+          notes: `Landing Page ID: ${lead.id} | Mode: ${lead.payment_mode || 'COD'}`,
           created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-        }).select('id').single();
-        if (leadIns.error) throw leadIns.error;
+        });
 
-        await supabase.from('crm_timeline_logs').insert({
+        await api.pushRow('crm_timeline_logs', {
           customer_id: cloudCustomerId, entity_type: 'Lead', action: 'Synced from Online',
           notes: `Lead automatically synced from landing page. Payment: ${lead.payment_mode || 'COD'}`,
           agent_name: 'SyncEngine', created_at: new Date().toISOString(),
         });
 
-        await supabase.from('leads').update({ sync_status: 'synced', synced_at: new Date().toISOString() }).eq('id', lead.id);
+        await api.pushRow('leads', {
+          id: lead.id, sync_status: 'synced', synced_at: new Date().toISOString(),
+        }, 'id');
         count++;
       } catch (e: any) {
-        await supabase.from('leads').update({ sync_status: 'failed', sync_error: String(e?.message || e).slice(0, 300) }).eq('id', lead.id);
+        await api
+          .pushRow('leads', { id: lead.id, sync_status: 'failed', sync_error: String(e?.message || e).slice(0, 300) }, 'id')
+          .catch(() => {});
       }
     }
     if (count > 0) console.log('[OnlineSync] intake converted', count, 'landing-page leads');
@@ -416,8 +367,9 @@ export async function startOnlineSync(): Promise<void> {
   } finally {
     setSyncStatus({ syncing: false, online: true });
   }
-  startRealtime();
 
+  // Realtime was replaced by periodic polling (30s) — Supabase Realtime
+  // does not exist on D1. Cloud changes arrive on the next tick.
   intervalId = setInterval(async () => {
     await processQueue();
     await pullAllFromCloud();
@@ -428,7 +380,6 @@ export async function startOnlineSync(): Promise<void> {
 export function stopOnlineSync(): void {
   started = false;
   if (intervalId) { clearInterval(intervalId); intervalId = null; }
-  if (channel) { supabase.removeChannel(channel); channel = null; }
 }
 
 export async function syncNow(): Promise<{ online: boolean; pending: number; error?: string }> {
