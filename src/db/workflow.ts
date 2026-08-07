@@ -44,6 +44,7 @@ export async function convertLeadToOrder(leadId: number, sourceModule: 'lead' | 
     if (!existingOrder) {
       const orderId = `ORD-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 900 + 100)}`;
       
+      const nowIso = new Date().toISOString();
       const newOrderId = await db.orders.add({
         orderId,
         leadId,
@@ -52,9 +53,13 @@ export async function convertLeadToOrder(leadId: number, sourceModule: 'lead' | 
         qty: 1,
         codAmount: lead.expectedAmount,
         status: 'Order Booked',
-        orderDate: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        orderDate: nowIso,
+        // IMMUTABLE booking attribution — commission credit stays with the
+        // telecaller who converted this lead, even if the lead is reassigned later.
+        bookedBy: lead.assignedTo || undefined,
+        bookedByName: lead.assignedAgent || undefined,
+        createdAt: nowIso,
+        updatedAt: nowIso
       });
 
       // Update lead status

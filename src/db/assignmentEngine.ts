@@ -26,6 +26,7 @@ export interface CallLogInput {
   reminderDate?: string;
   reminderTime?: string;
   reminderReason?: string;
+  durationSec?: number;
 }
 
 export interface CallLogResult {
@@ -41,6 +42,7 @@ export interface CallLogResult {
   reminderDate?: string;
   reminderTime?: string;
   reminderReason?: string;
+  durationSec?: number;
   createdAt: string;
 }
 
@@ -199,6 +201,7 @@ export async function logCall(input: CallLogInput): Promise<CallLogResult> {
     reminderDate: input.reminderDate,
     reminderTime: input.reminderTime,
     reminderReason: input.reminderReason,
+    durationSec: input.durationSec || 0,
     createdAt: now,
   };
   entry.id = await db.callLogs.add(entry);

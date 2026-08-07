@@ -69,6 +69,8 @@ export interface CallLogEntry {
   reminderDate?: string;
   reminderTime?: string;
   reminderReason?: string;
+  /** Call duration in seconds (telecaller-entered after a call). */
+  durationSec?: number;
   createdAt: string;
 }
 
@@ -85,6 +87,13 @@ export interface Order {
   status: 'Order Booked' | 'Packing' | 'Packed' | 'Ready To Ship' | 'Shipped' | 'In Transit' | 'Out For Delivery' | 'Delivered' | 'Undelivered' | 'RTO' | 'Cancelled';
   orderDate: string;
   shipmentDate?: string;
+  /** Immutable booking attribution — the telecaller who booked this order.
+   *  Stamped at creation and never follows a later lead reassignment, so
+   *  commission always goes to the right person. */
+  bookedBy?: string;
+  bookedByName?: string;
+  /** Set the moment the order reaches 'Delivered' (commission windows). */
+  deliveredAt?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -791,6 +791,7 @@ function OrderPipelineContent() {
       const existingOrder = await db.orders.where('leadId').equals(leadId).first();
       if (existingOrder) { toast.error('Order already exists for this lead'); return; }
       const orderId = `AVN-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100)}`;
+      const nowIso = new Date().toISOString();
       const id = await db.orders.add({
         orderId,
         leadId: lead.id,
@@ -799,9 +800,11 @@ function OrderPipelineContent() {
         qty: 1,
         codAmount: lead.expectedAmount,
         status: 'Order Booked',
-        orderDate: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        orderDate: nowIso,
+        bookedBy: lead.assignedTo || undefined,
+        bookedByName: lead.assignedAgent || undefined,
+        createdAt: nowIso,
+        updatedAt: nowIso,
       });
       await db.timelineLogs.add({
         customerId: lead.customerId,

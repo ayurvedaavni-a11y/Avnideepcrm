@@ -32,6 +32,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
   const [reminderDate, setReminderDate] = useState(lead.reminderDate || '');
   const [reminderTime, setReminderTime] = useState(lead.reminderTime || '');
   const [reminderReason, setReminderReason] = useState(lead.reminderReason || '');
+  const [durationMin, setDurationMin] = useState('');
   const [busy, setBusy] = useState(false);
 
   // Full call history for this lead (never overwritten)
@@ -44,6 +45,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
     if (busy) return;
     setBusy(true);
     try {
+      const mins = Number(durationMin);
       await logCall({
         leadId: lead.id,
         telecallerId: profile?.id,
@@ -55,6 +57,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
         reminderDate: reminderDate || undefined,
         reminderTime: reminderTime || undefined,
         reminderReason: reminderReason || undefined,
+        durationSec: Number.isFinite(mins) && mins > 0 ? Math.round(mins * 60) : 0,
       });
       toast.success('Call logged successfully');
       onClose();
@@ -123,6 +126,22 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
             />
           </div>
 
+          {/* Call duration (optional) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              Call Duration (minutes, optional)
+            </label>
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={durationMin}
+              onChange={(e) => setDurationMin(e.target.value.replace(/[^0-9.]/g, ''))}
+              placeholder="e.g. 5 — kitni der baat hui"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+          </div>
+
           {/* Follow-up */}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
@@ -178,6 +197,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
                     </div>
                     <div className="flex items-center gap-2 mt-1.5">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getBadgeClasses(c.status)}`}>{c.status}</span>
+                      {(c.durationSec ?? 0) > 0 && <span className="text-[10px] text-slate-500 font-semibold">⏱ {Math.round((c.durationSec ?? 0) / 60)} min</span>}
                       {c.followupDate && <span className="text-[10px] text-amber-600 font-semibold">📅 {c.followupDate}</span>}
                     </div>
                     {c.notes && <p className="text-sm text-slate-600 mt-1.5 whitespace-pre-wrap">{c.notes}</p>}

@@ -138,4 +138,11 @@ export const api = {
 
   // ---- intake ----
   intakePending: () => request<{ data: any[] }>('/api/intake/pending'),
+
+  // ---- settings + performance (commission) ----
+  getSettings: () => request<{ settings: Record<string, string> }>('/api/settings'),
+  setSetting: (key: string, value: string) =>
+    request<{ ok: boolean }>('/api/settings', { method: 'PATCH', body: { key, value } }),
+  getPerformance: () =>
+    request<{ rate: number; members: any[] }>('/api/performance'),
 };

@@ -35,7 +35,7 @@ export const TABLES: Record<string, TableDef> = {
     columns: [
       'order_id', 'lead_id', 'customer_id', 'product', 'qty', 'cod_amount',
       'courier', 'tracking_id', 'status', 'order_date', 'shipment_date',
-      'created_at', 'updated_at',
+      'booked_by', 'booked_by_name', 'delivered_at', 'created_at', 'updated_at',
     ],
   },
   crm_spacel_followups: {
@@ -59,8 +59,13 @@ export const TABLES: Record<string, TableDef> = {
     columns: [
       'lead_id', 'customer_id', 'telecaller_id', 'telecaller_name', 'status',
       'notes', 'followup_date', 'followup_time', 'reminder_date',
-      'reminder_time', 'reminder_reason', 'created_at',
+      'reminder_time', 'reminder_reason', 'duration_sec', 'created_at',
     ],
+  },
+  // ---- key/value settings (commission rate etc.) ----
+  crm_settings: {
+    dedup: 'key',
+    columns: ['key', 'value', 'updated_at'],
   },
   // ---- admin-only tables (ported for completeness) ----
   crm_logistics: {

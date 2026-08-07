@@ -11,11 +11,13 @@ import { triggerSQLiteBackup, restoreSQLiteFromDialog } from '../db/sqliteSync';
 import { repairAllCustomers } from '../db/addressRepairEngine';
 import LogOut from 'lucide-react/dist/esm/icons/log-out'
 import UserSquare2 from 'lucide-react/dist/esm/icons/user-square-2'
-import { useState } from 'react';
+import Wallet from 'lucide-react/dist/esm/icons/wallet'
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { InvoiceSettings } from './InvoiceSettings';
 import { WhatsApp } from './WhatsApp';
 import { changePin } from '../db/auth';
+import { api } from '../db/apiClient';
 
 function SettingsContent() {
   const { profile, isAdmin, logout } = useAuth();
@@ -23,6 +25,36 @@ function SettingsContent() {
   const [newPin, setNewPin] = useState('');
   const [pinMsg, setPinMsg] = useState('');
   const [pinOk, setPinOk] = useState(false);
+  const [commissionRate, setCommissionRate] = useState('');
+  const [commissionSaving, setCommissionSaving] = useState(false);
+
+  // Load current commission rate once (admin-only editor).
+  useEffect(() => {
+    let cancelled = false;
+    if (!isAdmin) return;
+    api.getSettings()
+      .then(r => { if (!cancelled && r?.settings?.commission_rate != null) setCommissionRate(String(r.settings.commission_rate)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
+
+  const handleSaveCommission = async () => {
+    const rate = Number(commissionRate);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+      toast.error('Commission rate 0-100% hona chahiye');
+      return;
+    }
+    setCommissionSaving(true);
+    try {
+      await api.setSetting('commission_rate', String(rate));
+      toast.success('Commission rate save ho gaya: ' + rate + '%');
+    } catch (e: any) {
+      toast.error(e?.message || 'Commission rate save nahi hua');
+    } finally {
+      setCommissionSaving(false);
+    }
+  };
 
   const handleChangePin = async () => {
     setPinMsg(''); setPinOk(false);
@@ -205,6 +237,40 @@ function SettingsContent() {
   return (
     <div className="space-y-6 max-w-4xl animate-in fade-in duration-300">
       <h1 className="text-2xl font-bold text-slate-900 font-sans">System Settings</h1>
+
+      {/* Commission rate (admin) — drives the Telecaller Performance commission */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
+          <Wallet className="text-emerald-600" />
+          <h2 className="text-lg font-bold text-slate-800 font-sans">Commission Settings</h2>
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-slate-600 mb-4">
+            Telecallers ko commission sirf <span className="font-bold">Delivered Orders</span> par milega.
+            Example: ek din me ₹10,000 ka delivered business, 10% rate par = ₹1,000 commission.
+            Ye rate <span className="font-bold">Telecaller Performance</span> page par live calculate hota hai.
+          </p>
+          <div className="flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Commission Rate (%)</label>
+              <input
+                type="number" min={0} max={100} inputMode="decimal"
+                value={commissionRate}
+                onChange={(e) => setCommissionRate(e.target.value.replace(/[^0-9.]/g, ''))}
+                placeholder="10"
+                className="w-40 border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              />
+            </div>
+            <button
+              onClick={handleSaveCommission}
+              disabled={commissionSaving}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white rounded-lg font-bold flex items-center gap-2 transition shadow-sm"
+            >
+              <Wallet size={16} /> {commissionSaving ? 'Saving…' : 'Save Commission Rate'}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex items-center gap-3">

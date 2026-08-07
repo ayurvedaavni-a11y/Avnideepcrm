@@ -61,7 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: 'Reports',
     items: [
       { name: 'Analytics', path: '/analytics', icon: BarChart3, adminOnly: true },
-      { name: 'Telecaller Performance', path: '/performance', icon: BarChart3, adminOnly: true },
+      { name: 'My Performance', path: '/performance', icon: BarChart3, adminOnly: false },
       { name: 'GST Reports', path: '/gst-reports', icon: FileText, adminOnly: true },
     ],
   },

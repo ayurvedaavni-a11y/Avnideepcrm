@@ -180,6 +180,11 @@ export function BookOrderModal({ leadId, onClose }: Props) {
 
       // 2. Create Order
       const orderId = `ORD-${Date.now().toString().slice(-6)}${Math.floor(Math.random() * 900 + 100)}`;
+      const nowIso = new Date().toISOString();
+      // IMMUTABLE booking attribution — commission credit stays with the
+      // telecaller who converted this lead, even if the lead is reassigned later.
+      const bookedBy = lead?.assignedTo || undefined;
+      const bookedByName = lead?.assignedAgent || undefined;
       const newOrderId = await db.orders.add({
         orderId,
         customerId: customer.id!,
@@ -188,9 +193,11 @@ export function BookOrderModal({ leadId, onClose }: Props) {
         qty: formData.quantity,
         codAmount: totals.finalTotal,
         status: 'Order Booked',
-        orderDate: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        orderDate: nowIso,
+        bookedBy,
+        bookedByName,
+        createdAt: nowIso,
+        updatedAt: nowIso
       });
 
       // 3. (No logistics record — order.status is the single source of truth.)

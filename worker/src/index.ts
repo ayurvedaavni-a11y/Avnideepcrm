@@ -530,18 +530,25 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
     if (user && user.role !== 'admin') {
       if (hasId) {
         // Update path: telecaller cannot modify any fulfilment/identity field.
-        for (const p of ['status', 'courier', 'tracking_id', 'shipment_date', 'cod_amount', 'customer_id', 'lead_id', 'order_id']) {
+        for (const p of ['status', 'courier', 'tracking_id', 'shipment_date', 'cod_amount', 'customer_id', 'lead_id', 'order_id', 'booked_by', 'booked_by_name', 'delivered_at']) {
           delete data[p];
         }
       } else {
         // Create path: order always starts at 'Order Booked'; courier fields
-        // are assigned by admin at dispatch time.
+        // are assigned by admin at dispatch time. booked_by = the telecaller
+        // who booked it (IMMUTABLE — commission attribution must never follow
+        // a later reassignment of the lead).
         data.status = 'Order Booked';
+        data.booked_by = String(user.id);
+        data.booked_by_name = user.full_name;
         for (const p of ['courier', 'tracking_id', 'shipment_date']) {
           delete data[p];
         }
       }
     }
+    // delivered_at is stamped the moment an order reaches 'Delivered' — the
+    // authoritative date for Daily/Weekly/Monthly commission windows.
+    if (data.status === 'Delivered' && !data.delivered_at) data.delivered_at = data.updated_at || new Date().toISOString();
   }
 
   if (Object.keys(data).length === 0) return json({ error: 'No writable columns' }, 400);
@@ -731,6 +738,118 @@ async function handleIntake(env: Env, request: Request): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------
+// settings (commission rate etc.) + telecaller performance/commission
+// ---------------------------------------------------------------------
+async function handleSettingsGet(env: Env, _request: Request, user: Record<string, any> | null): Promise<Response> {
+  const denied = requireAuth(user);
+  if (denied) return denied;
+  const rows = (await env.DB.prepare('SELECT key, value FROM crm_settings').all()).results as Record<string, any>[];
+  const settings: Record<string, string> = {};
+  for (const r of rows || []) settings[String(r.key)] = String(r.value ?? '');
+  return json({ settings });
+}
+
+async function handleSettingsPatch(env: Env, request: Request, user: Record<string, any> | null): Promise<Response> {
+  const denied = requireAdmin(user);
+  if (denied) return denied;
+  const body = await readJson(request);
+  const key = String(body.key || '').trim();
+  if (!key) return json({ error: 'key required' }, 400);
+  const value = String(body.value ?? '');
+  if (key === 'commission_rate') {
+    const rate = Number(value);
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
+      return json({ error: 'Commission rate 0-100% hona chahiye' }, 400);
+    }
+  }
+  await env.DB.prepare(
+    "INSERT INTO crm_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
+  )
+    .bind(key, value, new Date().toISOString())
+    .run();
+  return json({ ok: true });
+}
+
+// PERFORMANCE + COMMISSION (admin = whole team, telecaller = own view).
+// Computed LIVE from crm_orders via SQL — the single source of truth, so the
+// numbers here can never drift from Orders / Logistics / Dashboard.
+// Commission = Delivered Amount × commission_rate (Delivered orders only).
+async function handlePerformance(env: Env, _request: Request, user: Record<string, any> | null): Promise<Response> {
+  const denied = requireAuth(user);
+  if (denied) return denied;
+  const rateRow = await env.DB.prepare("SELECT value FROM crm_settings WHERE key = 'commission_rate'").first();
+  const commissionRate = Number((rateRow as any)?.value ?? 0) / 100;
+
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).toISOString();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+  const isAdmin = user?.role === 'admin';
+  // Admin: all members. Telecaller: themselves only.
+  const members = isAdmin
+    ? (await env.DB.prepare("SELECT id, full_name, mobile FROM users WHERE role = 'telecaller' ORDER BY full_name").all()).results as Record<string, any>[]
+    : [{ id: user!.id, full_name: user!.full_name, mobile: user!.mobile }];
+
+  const out = [];
+  for (const m of members) {
+    const uid = String(m.id);
+    const agg = await env.DB.prepare(
+      `SELECT
+         COUNT(*) AS total_orders,
+         COALESCE(SUM(CASE WHEN status = 'Delivered' THEN cod_amount ELSE 0 END), 0) AS delivered_amount,
+         COALESCE(SUM(CASE WHEN status IN ('Order Booked','Packing','Packed','Ready To Ship','Shipped','In Transit','Out For Delivery') THEN cod_amount ELSE 0 END), 0) AS pending_amount,
+         COALESCE(SUM(CASE WHEN status = 'RTO' THEN cod_amount ELSE 0 END), 0) AS rto_amount,
+         COALESCE(SUM(CASE WHEN status = 'Cancelled' THEN cod_amount ELSE 0 END), 0) AS cancelled_amount,
+         COALESCE(SUM(CASE WHEN status = 'Delivered' AND COALESCE(delivered_at, updated_at) >= ? THEN cod_amount ELSE 0 END), 0) AS daily_amount,
+         COALESCE(SUM(CASE WHEN status = 'Delivered' AND COALESCE(delivered_at, updated_at) >= ? THEN cod_amount ELSE 0 END), 0) AS weekly_amount,
+         COALESCE(SUM(CASE WHEN status = 'Delivered' AND COALESCE(delivered_at, updated_at) >= ? THEN cod_amount ELSE 0 END), 0) AS monthly_amount
+       FROM crm_orders WHERE booked_by = ?`
+    )
+      .bind(dayStart, weekStart, monthStart, uid)
+      .first();
+    const a = (agg || {}) as Record<string, any>;
+    const deliveredAmount = Number(a.delivered_amount ?? 0);
+    const daily = Number(a.daily_amount ?? 0);
+    const weekly = Number(a.weekly_amount ?? 0);
+    const monthly = Number(a.monthly_amount ?? 0);
+    // Calls + follow-ups + conversion from call logs / leads.
+    const callsRow = await env.DB.prepare(
+      "SELECT COUNT(*) AS calls, COALESCE(SUM(duration_sec), 0) AS total_sec FROM crm_call_logs WHERE telecaller_id = ?"
+    ).bind(uid).first();
+    const leadRow = await env.DB.prepare(
+      "SELECT COUNT(*) AS assigned FROM crm_leads WHERE assigned_to = ?"
+    ).bind(uid).first();
+    const convertedRow = await env.DB.prepare(
+      "SELECT COUNT(*) AS converted FROM crm_leads WHERE assigned_to = ? AND status = 'Order Booked'"
+    ).bind(uid).first();
+    const assigned = Number((leadRow as any)?.assigned ?? 0);
+    const converted = Number((convertedRow as any)?.converted ?? 0);
+    out.push({
+      telecallerId: uid,
+      telecallerName: String(m.full_name || m.id),
+      mobile: m.mobile || '',
+      assigned,
+      calls: Number((callsRow as any)?.calls ?? 0),
+      totalCallSeconds: Number((callsRow as any)?.total_sec ?? 0),
+      converted,
+      conversionPct: assigned ? Math.round((converted / assigned) * 1000) / 10 : 0,
+      totalOrders: Number(a.total_orders ?? 0),
+      deliveredAmount,
+      pendingAmount: Number(a.pending_amount ?? 0),
+      rtoAmount: Number(a.rto_amount ?? 0),
+      cancelledAmount: Number(a.cancelled_amount ?? 0),
+      dailyAmount: daily,
+      weeklyAmount: weekly,
+      monthlyAmount: monthly,
+      commission: Math.round(deliveredAmount * commissionRate * 100) / 100,
+      commissionRate: commissionRate * 100,
+    });
+  }
+  return json({ rate: commissionRate * 100, members: out });
+}
+
+// ---------------------------------------------------------------------
 // startup self-healing (TASK 7 + 9) — admin-only repair sweep
 // ---------------------------------------------------------------------
 // Called silently on every app startup (and by the DB Health page). Fixes any
@@ -876,6 +995,11 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
 
       // ---- self-healing repair (admin) ----
       if (path === '/api/admin/repair-assignments' && request.method === 'POST') return handleRepairAssignments(env, request, user);
+
+      // ---- settings + performance ----
+      if (path === '/api/settings' && request.method === 'GET') return handleSettingsGet(env, request, user);
+      if (path === '/api/settings' && request.method === 'PATCH') return handleSettingsPatch(env, request, user);
+      if (path === '/api/performance' && request.method === 'GET') return handlePerformance(env, request, user);
 
       // ---- intake ----
       if (path === '/api/intake' && request.method === 'POST') return handleIntake(env, request);

@@ -228,7 +228,7 @@ function AppContent() {
           <Route path="whatsapp" element={<RequireAdmin><WhatsApp /></RequireAdmin>} />
           <Route path="analytics" element={<RequireAdmin><Analytics /></RequireAdmin>} />
           <Route path="team" element={<RequireAdmin><Team /></RequireAdmin>} />
-          <Route path="performance" element={<RequireAdmin><TelecallerPerformance /></RequireAdmin>} />
+          <Route path="performance" element={<TelecallerPerformance />} />
           <Route path="settings" element={<RequireAdmin><Settings /></RequireAdmin>} />
           <Route path="db-health" element={<RequireAdmin><DBHealthCheck /></RequireAdmin>} />
         </Route>
