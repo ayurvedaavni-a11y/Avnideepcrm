@@ -463,6 +463,36 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
       delete data[p];
     }
   }
+  // ORDER RULES — single source of truth + server-side permissions:
+  //  - `status` must be a valid pipeline status (anyone, admin included).
+  //  - Telecallers may CREATE an order (status forced to 'Order Booked') but
+  //    can NEVER change shipment status, courier, AWB, shipment date, COD or
+  //    which customer/lead the order belongs to.
+  if (table === 'crm_orders') {
+    const ORDER_STATUS_WHITELIST = [
+      'Order Booked', 'Packing', 'Packed', 'Ready To Ship', 'Shipped',
+      'In Transit', 'Out For Delivery', 'Undelivered', 'Delivered', 'RTO', 'Cancelled',
+    ];
+    if (data.status !== undefined && !ORDER_STATUS_WHITELIST.includes(String(data.status))) {
+      return json({ error: 'Invalid order status' }, 400);
+    }
+    if (user && user.role !== 'admin') {
+      if (hasId) {
+        // Update path: telecaller cannot modify any fulfilment/identity field.
+        for (const p of ['status', 'courier', 'tracking_id', 'shipment_date', 'cod_amount', 'customer_id', 'lead_id', 'order_id']) {
+          delete data[p];
+        }
+      } else {
+        // Create path: order always starts at 'Order Booked'; courier fields
+        // are assigned by admin at dispatch time.
+        data.status = 'Order Booked';
+        for (const p of ['courier', 'tracking_id', 'shipment_date']) {
+          delete data[p];
+        }
+      }
+    }
+  }
+
   if (Object.keys(data).length === 0) return json({ error: 'No writable columns' }, 400);
 
   // DELTA-SYNC SAFETY: guarantee timestamps on pushed rows. Without this, a

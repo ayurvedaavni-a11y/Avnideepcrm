@@ -1,9 +1,11 @@
-// AVNIDEEP CRM PRO — Professional Order Management Pipeline (Kanban OMS)
-// Stages: Order Booked → Packing → Packed → Ready To Ship → Shipped → In Transit → Out For Delivery → Delivered → RTO → Cancelled
+// AVNIDEEP CRM PRO — Order Management (Single Source of Truth)
+// Admin workflow: Order Booked → Packing → Packed → Ready To Ship → [Shipped → Logistics]
+// Telecaller workflow ends at "Create Order" — they never touch fulfilment statuses.
+// The order row (db.orders.status) is the ONLY master status; every page reads it.
 
 import { useState, useMemo, useCallback, memo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db/db';
+import { db, type Lead } from '../db/db';
 import { toast } from 'react-hot-toast';
 import Package from 'lucide-react/dist/esm/icons/package'
 import Truck from 'lucide-react/dist/esm/icons/truck'
@@ -21,59 +23,48 @@ import MoreHorizontal from 'lucide-react/dist/esm/icons/more-horizontal'
 import ShoppingCart from 'lucide-react/dist/esm/icons/shopping-cart'
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
 import Send from 'lucide-react/dist/esm/icons/send'
-import MapPin from 'lucide-react/dist/esm/icons/map-pin'
-import Home from 'lucide-react/dist/esm/icons/home'
-import Ban from 'lucide-react/dist/esm/icons/ban'
-import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
+import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right'
 import { safeFormat } from '../lib/safeFormat';
 import { autoGenerateInvoice, downloadInvoicePDF } from '../db/invoiceEngine';
-import { syncOrderToCentralStatus } from '../db/workflow';
+import { updateOrderStatus, isShipmentStatus } from '../db/workflow';
 import { Customer360Profile } from '../components/Customer360Profile';
 import { useDateFilter } from '../context/DateFilterContext';
 import { useAuth } from '../context/AuthContext';
-import { DeliveredCustomers } from './DeliveredCustomers';
 
-// ===== Pipeline Stages Definition =====
+// ===== Admin Pipeline — first 4 fulfilment stages (Shipped+ lives in Logistics) =====
 const PIPELINE_STAGES = [
-  { key: 'Order Booked',     label: 'Order Booked',     icon: ShoppingCart, color: 'amber',   bg: 'bg-amber-50',    headerColor: 'text-amber-700',    borderColor: 'border-amber-200', nextStage: 'Packing' },
-  { key: 'Packing',          label: 'Packing',           icon: Package,      color: 'orange',  bg: 'bg-orange-50',   headerColor: 'text-orange-700',   borderColor: 'border-orange-200', nextStage: 'Packed' },
-  { key: 'Packed',           label: 'Packed',            icon: ShieldCheck,  color: 'indigo',  bg: 'bg-indigo-50',   headerColor: 'text-indigo-700',   borderColor: 'border-indigo-200', nextStage: 'Ready To Ship' },
-  { key: 'Ready To Ship',    label: 'Ready To Ship',     icon: Send,         color: 'blue',    bg: 'bg-blue-50',     headerColor: 'text-blue-700',     borderColor: 'border-blue-200', nextStage: 'Shipped' },
-  { key: 'Shipped',          label: 'Shipped',           icon: Truck,        color: 'blue',    bg: 'bg-blue-50',     headerColor: 'text-blue-700',     borderColor: 'border-blue-200', nextStage: 'In Transit' },
-  { key: 'In Transit',       label: 'In Transit',        icon: MapPin,       color: 'blue',    bg: 'bg-blue-50',     headerColor: 'text-blue-700',     borderColor: 'border-blue-200', nextStage: 'Out For Delivery' },
-  { key: 'Out For Delivery', label: 'Out For Delivery',  icon: Home,         color: 'amber',   bg: 'bg-amber-50',    headerColor: 'text-amber-700',    borderColor: 'border-amber-200', nextStage: 'Delivered' },
-  { key: 'Delivered',        label: 'Delivered',         icon: Check,        color: 'emerald', bg: 'bg-emerald-50',  headerColor: 'text-emerald-700',  borderColor: 'border-emerald-200', nextStage: null },
-  { key: 'RTO',              label: 'RTO',               icon: RotateCcw,    color: 'red',     bg: 'bg-red-50',      headerColor: 'text-red-700',      borderColor: 'border-red-200', nextStage: null },
-  { key: 'Cancelled',        label: 'Cancelled',         icon: Ban,          color: 'slate',   bg: 'bg-slate-100',   headerColor: 'text-slate-600',    borderColor: 'border-slate-200', nextStage: null },
+  { key: 'Order Booked',     label: 'Order Booked', icon: ShoppingCart, color: 'amber',   bg: 'bg-amber-50',    headerColor: 'text-amber-700',    borderColor: 'border-amber-200', nextStage: 'Packing',      advanceLabel: 'Start Packing' },
+  { key: 'Packing',          label: 'Packing',      icon: Package,      color: 'orange',  bg: 'bg-orange-50',   headerColor: 'text-orange-700',   borderColor: 'border-orange-200', nextStage: 'Packed',       advanceLabel: 'Mark Packed' },
+  { key: 'Packed',           label: 'Packed',       icon: ShieldCheck,  color: 'indigo',  bg: 'bg-indigo-50',   headerColor: 'text-indigo-700',   borderColor: 'border-indigo-200', nextStage: 'Ready To Ship', advanceLabel: 'Ready To Ship' },
+  { key: 'Ready To Ship',    label: 'Ready To Ship', icon: Send,        color: 'blue',    bg: 'bg-blue-50',     headerColor: 'text-blue-700',     borderColor: 'border-blue-200', nextStage: 'Shipped',      advanceLabel: 'Ship → Logistics' },
 ];
 
-// ===== Status Change Options Per Stage =====
 const NEXT_STATUS_MAP: Record<string, string[]> = {
   'Order Booked':     ['Packing', 'Cancelled'],
   'Packing':          ['Packed', 'Order Booked', 'Cancelled'],
   'Packed':           ['Ready To Ship', 'Packing', 'Cancelled'],
   'Ready To Ship':    ['Shipped', 'Packed', 'Cancelled'],
-  'Shipped':          ['In Transit', 'Ready To Ship', 'Undelivered', 'RTO', 'Cancelled'],
-  'In Transit':       ['Out For Delivery', 'Shipped', 'Undelivered', 'RTO', 'Cancelled'],
-  'Out For Delivery': ['Delivered', 'In Transit', 'Undelivered', 'RTO', 'Cancelled'],
+  'Shipped':          [], // Shipped+ is managed in the Logistics module
+  'In Transit':       [],
+  'Out For Delivery': [],
   'Delivered':        [],
   'RTO':              [],
   'Cancelled':        [],
 };
 
-const ALL_PIPELINE_STATUSES = PIPELINE_STAGES.map(s => s.key);
+const PIPELINE_KEYS = PIPELINE_STAGES.map(s => s.key);
 
 // ===== Main Component =====
-const MAX_CARDS_PER_COLUMN = 30;
+const MAX_CARDS_PER_COLUMN = 40;
 
 function OrderPipelineContent() {
+  const { isAdmin, profile } = useAuth();
   const allOrders = useLiveQuery(() => db.orders.toArray(), []) || [];
   const allCustomers = useLiveQuery(() => db.customers.toArray(), []) || [];
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [detailOrderId, setDetailOrderId] = useState<number | null>(null);
 
-  // OPTIMIZATION: Pre-build customerMap instead of per-row useLiveQuery
   const customerMap = useMemo(() => {
     const map = new Map<number, any>();
     allCustomers.forEach(c => { if (c.id) map.set(c.id, c); });
@@ -82,21 +73,21 @@ function OrderPipelineContent() {
 
   const { filterByDate } = useDateFilter();
 
+  // Orders currently on the 4 admin columns
   const pipelineOrders = useMemo(() => {
-    return allOrders.filter(o => ALL_PIPELINE_STATUSES.includes(o.status));
+    return allOrders.filter(o => PIPELINE_KEYS.includes(o.status));
   }, [allOrders]);
 
-  // Group orders by status for each column
+  // Shipped+ orders → managed in Logistics module
+  const shippedPlus = useMemo(() => allOrders.filter(o => isShipmentStatus(o.status)).length, [allOrders]);
+
   const columnOrders = useMemo(() => {
     const map: Record<string, any[]> = {};
-    ALL_PIPELINE_STATUSES.forEach(s => { map[s] = []; });
-    
-    // Apply date filter first
+    PIPELINE_KEYS.forEach(s => { map[s] = []; });
     let filtered = filterByDate(pipelineOrders, 'orderDate');
-
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(o => 
+      filtered = filtered.filter(o =>
         o.orderId.toLowerCase().includes(term) ||
         o.product.toLowerCase().includes(term) ||
         o.trackingId?.toLowerCase().includes(term) ||
@@ -104,16 +95,26 @@ function OrderPipelineContent() {
         String(o.codAmount).includes(term)
       );
     }
-    
-    filtered.forEach(o => {
-      if (map[o.status]) map[o.status].push(o);
-    });
+    filtered.forEach(o => { if (map[o.status]) map[o.status].push(o); });
     return map;
   }, [pipelineOrders, filterByDate, searchTerm]);
 
-  // Leads ready for sync (status = 'Order Booked' but no order yet)
-  const leadsReady = useLiveQuery(() => 
-    db.leads.where('status').equals('Order Booked').toArray(), []
+  // Telecaller view — only orders created from their own leads
+  const tcLeads = useLiveQuery<Lead[]>(
+    () => profile && !isAdmin
+      ? db.leads.filter(l => l.assignedTo === profile.id || (!l.assignedTo && l.assignedAgent === profile.full_name)).toArray()
+      : Promise.resolve<Lead[]>([]),
+    [profile, isAdmin]
+  ) || [];
+  const tcLeadIds = useMemo(() => new Set(tcLeads.map(l => l.id)), [tcLeads]);
+  const tcOrders = useMemo(() => {
+    if (isAdmin) return [];
+    return allOrders.filter(o => o.leadId != null && tcLeadIds.has(o.leadId));
+  }, [allOrders, tcLeadIds, isAdmin]);
+
+  // Leads ready for sync (admin)
+  const leadsReady = useLiveQuery<Lead[]>(
+    () => (isAdmin ? db.leads.where('status').equals('Order Booked').toArray() : Promise.resolve<Lead[]>([])), [isAdmin]
   ) || [];
 
   const handleViewTimeline = useCallback((customerId: number) => setSelectedCustomerId(customerId), []);
@@ -124,10 +125,7 @@ function OrderPipelineContent() {
       const lead = await db.leads.get(leadId);
       if (!lead) return;
       const existingOrder = await db.orders.where('leadId').equals(leadId).first();
-      if (existingOrder) {
-        toast.error('Order already exists for this lead');
-        return;
-      }
+      if (existingOrder) { toast.error('Order already exists for this lead'); return; }
       const orderId = `AVN-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 100)}`;
       const id = await db.orders.add({
         orderId,
@@ -161,77 +159,97 @@ function OrderPipelineContent() {
     let count = 0;
     for (const lead of leadsReady) {
       const existing = await db.orders.where('leadId').equals(lead.id!).first();
-      if (!existing) {
-        await handleSyncLeadToOrder(lead.id!);
-        count++;
-      }
+      if (!existing) { await handleSyncLeadToOrder(lead.id!); count++; }
     }
     if (count > 0) toast.success(`Synced ${count} leads`);
     else toast('No pending leads to sync', { icon: 'ℹ️' });
   };
 
+  // UNIFIED status write path — same function used by Logistics + NDR.
   const handleAdvanceOrder = useCallback(async (orderId: number, newStatus: string) => {
     try {
       const order = await db.orders.get(orderId);
       if (!order) return;
-      const oldStatus = order.status;
-
-      const updateData: any = { status: newStatus, updatedAt: new Date().toISOString() };
-
-      // Auto-set tracking fields when shipping
+      const meta: any = { agentName: profile?.full_name || 'Admin' };
       if (newStatus === 'Shipped' && !order.trackingId) {
-        updateData.trackingId = `TRK${Date.now().toString().slice(-8)}`;
-        updateData.shipmentDate = new Date().toISOString();
-        updateData.courier = order.courier || 'Delhivery';
-        
-        // Create logistics record on first ship
-        const existingLog = await db.logistics.where('orderId').equals(orderId).first();
-        if (!existingLog) {
-          const logId = await db.logistics.add({
-            orderId,
-            status: 'Shipped',
-            dispatchDate: new Date().toISOString(),
-            lastUpdate: new Date().toISOString(),
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          }) as number;
-          await db.shipmentScans.add({
-            orderId, logisticsId: logId,
-            status: 'Shipped', normalizedStatus: 'Shipped',
-            remarks: 'Shipment handed over to courier',
-            scanDate: new Date().toISOString(), source: 'manual',
-            createdAt: new Date().toISOString()
-          });
-        }
+        meta.trackingId = `TRK${Date.now().toString().slice(-8)}`;
+        meta.shipmentDate = new Date().toISOString();
+        meta.courier = order.courier || 'Delhivery';
       }
-
-      await db.orders.update(orderId, updateData);
-      await syncOrderToCentralStatus(orderId, newStatus, oldStatus);
-
-      await db.timelineLogs.add({
-        customerId: order.customerId,
-        entityType: 'Order',
-        entityId: orderId,
-        action: `Order ${newStatus}`,
-        statusFrom: oldStatus,
-        statusTo: newStatus,
-        notes: newStatus === 'Shipped' ? `Tracking: ${updateData.trackingId}` : 
-               newStatus === 'Delivered' ? 'Order delivered successfully' : '',
-        agentName: 'Admin',
-        createdAt: new Date().toISOString()
-      });
-
-      toast.success(`Order moved to ${newStatus}`);
+      const r = await updateOrderStatus(orderId, newStatus, meta);
+      if (r.changed) {
+        toast.success(newStatus === 'Shipped' ? 'Order moved to Logistics (Shipped)' : `Order moved to ${newStatus}`);
+      }
     } catch (e) {
       toast.error('Failed to update order status');
     }
-  }, []);
+  }, [profile]);
 
+  // ============ TELECALLER VIEW ============
+  if (!isAdmin) {
+    return (
+      <div className="space-y-5 animate-in fade-in duration-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+              <ShoppingCart className="text-blue-600" size={26} /> My Orders
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">{tcOrders.length} order(s) booked from your leads</p>
+          </div>
+        </div>
+        {tcOrders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-2xl border border-slate-200">
+            <ShoppingCart size={40} className="text-slate-300 mb-3" />
+            <p className="font-medium">Koi order nahi</p>
+            <p className="text-xs mt-1">Lead Center se 'Order Booked' status par order create karne ke baad yahan dikhega.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {tcOrders.map(order => {
+              const customer = customerMap.get(order.customerId);
+              if (!customer) return null;
+              return (
+                <div key={order.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-bold font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{order.orderId}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">{order.status}</span>
+                  </div>
+                  <h4 className="font-bold text-slate-800">{customer.name}</h4>
+                  <p className="text-xs text-slate-500">{customer.mobile}</p>
+                  <p className="text-sm text-slate-600 mt-2 truncate">{order.product} {order.qty > 1 ? `(x${order.qty})` : ''}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="font-bold text-slate-800">₹{order.codAmount?.toLocaleString()}</span>
+                    <span className="text-[10px] text-slate-400">{safeFormat(order.createdAt, 'dd MMM yyyy')}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-100">
+                    <a href={`tel:${customer.mobile}`} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 rounded-lg text-xs font-bold hover:bg-green-100 transition">
+                      <Phone size={13} /> Call
+                    </a>
+                    <a href={`https://wa.me/91${customer.mobile}`} target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold hover:bg-emerald-100 transition">
+                      <MessageCircle size={13} /> WhatsApp
+                    </a>
+                    <button onClick={() => handleViewTimeline(customer.id!)} title="Timeline" className="p-2 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition">
+                      <Eye size={15} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {selectedCustomerId && (
+          <Customer360Profile customerId={selectedCustomerId} isOpen onClose={() => setSelectedCustomerId(null)} />
+        )}
+      </div>
+    );
+  }
+
+  // ============ ADMIN VIEW — 4-column fulfilment board ============
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 mb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Order Pipeline</h1>
             <p className="text-slate-500 text-sm mt-0.5">
@@ -251,35 +269,36 @@ function OrderPipelineContent() {
             </button>
           </div>
         </div>
+        {shippedPlus > 0 && (
+          <div className="mt-3 flex items-center gap-2 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <Truck size={14} /> {shippedPlus} order(s) Shipped+ hain — yeh Courier Management (Logistics) module mein manage hote hain.
+          </div>
+        )}
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto overflow-y-hidden pb-4">
-        <div className="flex gap-4 h-full min-w-max">
+      {/* Kanban Board — stacked cards on mobile, columns on desktop */}
+      <div className="flex-1 overflow-y-auto pb-4">
+        <div className="flex flex-col lg:flex-row lg:gap-4 lg:overflow-x-auto gap-4">
           {PIPELINE_STAGES.map(stage => {
             const orders = columnOrders[stage.key] || [];
             const totalCod = orders.reduce((s, o) => s + (o.codAmount || 0), 0);
             return (
-              <div key={stage.key} className="flex flex-col w-72 rounded-xl border border-slate-200 bg-slate-50/80 shadow-sm">
-                {/* Column Header */}
+              <div key={stage.key} className="flex flex-col w-full lg:w-80 lg:flex-shrink-0 rounded-xl border border-slate-200 bg-slate-50/80 shadow-sm">
                 <div className={`flex-shrink-0 ${stage.bg} ${stage.borderColor} border-b p-3 rounded-t-xl`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <stage.icon size={18} className={stage.headerColor} />
                       <h3 className={`font-bold text-sm ${stage.headerColor}`}>{stage.label}</h3>
                     </div>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold bg-white ${stage.headerColor} shadow-sm`}>
-                      {orders.length}
-                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold bg-white ${stage.headerColor} shadow-sm`}>{orders.length}</span>
                   </div>
                   {orders.length > 0 && (
                     <p className="text-xs text-slate-500 mt-1 font-medium">₹{totalCod.toLocaleString()}</p>
                   )}
                 </div>
-                {/* Cards Container */}
-                <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[200px]">
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[140px] lg:min-h-[240px]">
                   {orders.slice(0, MAX_CARDS_PER_COLUMN).map(order => (
-                    <OrderCardWrapper 
+                    <OrderCardWrapper
                       key={order.id}
                       order={order}
                       customer={customerMap.get(order.customerId)}
@@ -313,7 +332,7 @@ function OrderPipelineContent() {
   );
 }
 
-// ===== Order Card (memoized - no useLiveQuery!) =====
+// ===== Order Card (memoized) =====
 const OrderCard = memo(function OrderCard({ order, customer, stage, onAdvance, onViewTimeline, onViewDetail }: {
   order: any; customer: any; stage: any; onAdvance: (s: string) => void; onViewTimeline: () => void; onViewDetail: () => void;
 }) {
@@ -341,39 +360,25 @@ const OrderCard = memo(function OrderCard({ order, customer, stage, onAdvance, o
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow duration-200 group">
-      {/* Card Header — Order ID + Date */}
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
-        <span className="text-[10px] font-bold font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-          {order.orderId}
-        </span>
+        <span className="text-[10px] font-bold font-mono text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{order.orderId}</span>
         <span className="text-[10px] text-slate-400">{safeFormat(order.createdAt, 'dd MMM')}</span>
       </div>
-
-      {/* Customer Info */}
       <div className="px-3 py-1.5">
         <h4 className="font-bold text-slate-800 text-sm truncate">{customer.name}</h4>
         <p className="text-xs text-slate-500 font-medium">{customer.mobile}</p>
       </div>
-
-      {/* Product + Amount */}
       <div className="px-3 pb-2">
         <p className="text-xs text-slate-600 truncate">{order.product} {order.qty > 1 ? `(x${order.qty})` : ''}</p>
         <div className="flex items-center justify-between mt-1">
           <span className="font-bold text-slate-800 text-sm">₹{order.codAmount?.toLocaleString()}</span>
           {order.trackingId && (
-            <span className="text-[9px] font-mono text-slate-400 truncate max-w-[100px]" title={order.trackingId}>
-              {order.trackingId.slice(0, 12)}...
-            </span>
+            <span className="text-[9px] font-mono text-slate-400 truncate max-w-[100px]" title={order.trackingId}>{order.trackingId.slice(0, 12)}...</span>
           )}
         </div>
-        {order.courier && (
-          <span className="text-[10px] text-slate-400">{order.courier}</span>
-        )}
+        {order.courier && <span className="text-[10px] text-slate-400">{order.courier}</span>}
       </div>
-
-      {/* Quick Actions */}
       <div className="px-3 pb-3 flex items-center justify-between border-t border-slate-100 pt-2">
-        {/* Status Change */}
         <div className="flex items-center gap-1">
           {nextOptions.slice(0, 2).map(status => (
             <button key={status}
@@ -381,17 +386,16 @@ const OrderCard = memo(function OrderCard({ order, customer, stage, onAdvance, o
               className={`text-[9px] font-bold px-2 py-1 rounded-md transition ${
                 status === 'Cancelled' || status === 'RTO' || status === 'Undelivered'
                   ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                  : status === 'Delivered'
-                  ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                  : status === 'Shipped'
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
               }`}>
-              {status === stage.nextStage ? `→ ${status}` : status}
+              {status === stage.nextStage && status !== 'Shipped' ? `→ ${status}` : status === 'Shipped' ? <span className="inline-flex items-center gap-1"><ArrowRight size={9} /> {stage.advanceLabel || 'Ship'}</span> : status}
             </button>
           ))}
           {nextOptions.length > 2 && (
             <div className="relative">
-              <button onClick={() => setShowActions(!showActions)}
-                className="p-1 text-slate-400 hover:text-slate-600 rounded">
+              <button onClick={() => setShowActions(!showActions)} className="p-1 text-slate-400 hover:text-slate-600 rounded">
                 <MoreHorizontal size={14} />
               </button>
               {showActions && (
@@ -407,8 +411,6 @@ const OrderCard = memo(function OrderCard({ order, customer, stage, onAdvance, o
             </div>
           )}
         </div>
-
-        {/* Action Icons */}
         <div className="flex items-center gap-0.5">
           <button onClick={handleInvoice} title="Invoice" className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition">
             <FileText size={13} />
@@ -436,35 +438,18 @@ const OrderCard = memo(function OrderCard({ order, customer, stage, onAdvance, o
   );
 });
 
-// ===== OrderCardWrapper — bridges stable callbacks to memo(OrderCard) =====
+// ===== OrderCardWrapper — stable callbacks for memo =====
 const OrderCardWrapper = memo(function OrderCardWrapper({ order, customer, stage, onAdvanceOrder, onViewTimeline, onViewDetail }: {
   order: any; customer: any; stage: any;
   onAdvanceOrder: (orderId: number, newStatus: string) => void;
   onViewTimeline: (customerId: number) => void;
   onViewDetail: (orderId: number) => void;
 }) {
-  const onAdvance = useCallback(
-    (newStatus: string) => onAdvanceOrder(order.id!, newStatus),
-    [order.id, onAdvanceOrder]
-  );
-  const onTimeline = useCallback(
-    () => onViewTimeline(order.customerId),
-    [order.customerId, onViewTimeline]
-  );
-  const onDetail = useCallback(
-    () => onViewDetail(order.id!),
-    [order.id, onViewDetail]
-  );
-
+  const onAdvance = useCallback((newStatus: string) => onAdvanceOrder(order.id!, newStatus), [order.id, onAdvanceOrder]);
+  const onTimeline = useCallback(() => onViewTimeline(order.customerId), [order.customerId, onViewTimeline]);
+  const onDetail = useCallback(() => onViewDetail(order.id!), [order.id, onViewDetail]);
   return (
-    <OrderCard
-      order={order}
-      customer={customer}
-      stage={stage}
-      onAdvance={onAdvance}
-      onViewTimeline={onTimeline}
-      onViewDetail={onDetail}
-    />
+    <OrderCard order={order} customer={customer} stage={stage} onAdvance={onAdvance} onViewTimeline={onTimeline} onViewDetail={onDetail} />
   );
 });
 
@@ -472,7 +457,7 @@ const OrderCardWrapper = memo(function OrderCardWrapper({ order, customer, stage
 function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () => void }) {
   const order = useLiveQuery(() => db.orders.get(orderId), [orderId]);
   const customer = useLiveQuery(() => order ? db.customers.get(order.customerId) : undefined, [order]);
-  const timeline = useLiveQuery(() => 
+  const timeline = useLiveQuery(() =>
     order ? db.timelineLogs.where('customerId').equals(order.customerId).reverse().toArray() : [],
     [order]
   );
@@ -490,7 +475,6 @@ function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () =
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition"><X size={20} className="text-slate-400" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Order Info Grid */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-slate-50 p-4 rounded-xl">
               <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Product</p>
@@ -517,16 +501,12 @@ function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () =
               <p className="font-bold text-slate-800 mt-1">{safeFormat(order.orderDate, 'dd MMM yyyy, HH:mm')}</p>
             </div>
           </div>
-
-          {/* Customer Info */}
           <div className="bg-slate-50 p-4 rounded-xl">
             <h4 className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-2">Customer Details</h4>
             <p className="text-sm text-slate-700">{customer.name} · {customer.mobile}</p>
             {customer.address && <p className="text-sm text-slate-600 mt-1">{customer.address}</p>}
             <p className="text-sm text-slate-600">{customer.city}, {customer.state} - {customer.pincode}</p>
           </div>
-
-          {/* Timeline */}
           <div>
             <h4 className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-3">Order Timeline</h4>
             <div className="space-y-3">
@@ -551,32 +531,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () =
   );
 }
 
-// =====================================================================
-// Tabbed wrapper: Order Pipeline + Delivered list (sidebar simplification).
-// Delivered view is admin-only; telecallers keep the plain pipeline.
-// =====================================================================
+// ===== Export (no separate Delivered tab — Shipped+ lives in Logistics) =====
 export function OrderPipeline() {
-  const { isAdmin } = useAuth();
-  const [view, setView] = useState<'pipeline' | 'delivered'>('pipeline');
-  const TABS = [
-    { key: 'pipeline' as const, label: 'Pipeline' },
-    { key: 'delivered' as const, label: 'Delivered', adminOnly: true },
-  ];
-  const tabs = TABS.filter((t) => !t.adminOnly || isAdmin);
-  return (
-    <div className="space-y-4 animate-in fade-in duration-300">
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setView(t.key)}
-            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${view === t.key ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      {view === 'delivered' ? <DeliveredCustomers /> : <OrderPipelineContent />}
-    </div>
-  );
+  return <OrderPipelineContent />;
 }

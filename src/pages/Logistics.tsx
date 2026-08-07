@@ -1,5 +1,9 @@
-// AVNIDEEP CRM PRO — Professional Courier Management Screen
-// Status Tabs: All | Ready To Ship | Ready For Pickup | Shipped | In Transit | Out For Delivery | Delivered | Undelivered | RTO | Cancelled
+// AVNIDEEP CRM PRO — Courier Management (Single Source of Truth)
+// The order row (db.orders.status) is the ONLY master shipment status.
+// This page reads order.status directly — there is no parallel logistics
+// record that can drift. Status changes go through updateOrderStatus()
+// which syncs order + customer counters + timeline + scan history.
+// Legacy `logistics` records (if any) are removed by the startup migration.
 
 import { useState, useMemo, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -23,15 +27,14 @@ import Phone from 'lucide-react/dist/esm/icons/phone'
 import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left'
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right'
 import { safeFormat } from '../lib/safeFormat';
-import { syncOrderToCentralStatus } from '../db/workflow';
+import { updateOrderStatus } from '../db/workflow';
 import { toast } from 'react-hot-toast';
-// exceljs imported dynamically in handleExport
 import { useDateFilter } from '../context/DateFilterContext';
 import { NDRPanel } from './NDRPanel';
 import { UndeliveredCustomers } from './UndeliveredCustomers';
 import { VirtualTable, type VirtualTableColumn } from '../components/VirtualTable';
 
-// ===== Status Tabs Configuration =====
+// ===== Status Tabs Configuration (matches ORDER_STATUSES pipeline) =====
 interface StatusTabConfig {
   key: string;
   label: string;
@@ -41,43 +44,30 @@ interface StatusTabConfig {
   dotColor: string;
 }
 
-// ===== Pagination =====
 const PAGE_SIZE = 50;
 
 const STATUS_TABS: StatusTabConfig[] = [
-  { key: 'All',             label: 'All',              color: 'slate',   activeBg: 'bg-slate-900', activeText: 'text-white', dotColor: 'bg-slate-500' },
-  { key: 'Ready To Ship',   label: 'Ready To Ship',    color: 'orange',  activeBg: 'bg-orange-500', activeText: 'text-white', dotColor: 'bg-orange-500' },
-  { key: 'Ready For Pickup',label: 'Ready For Pickup', color: 'purple',  activeBg: 'bg-purple-600', activeText: 'text-white', dotColor: 'bg-purple-600' },
-  { key: 'Shipped',         label: 'Shipped',          color: 'blue',    activeBg: 'bg-blue-600', activeText: 'text-white', dotColor: 'bg-blue-600' },
-  { key: 'In Transit',      label: 'In Transit',       color: 'indigo',  activeBg: 'bg-indigo-600', activeText: 'text-white', dotColor: 'bg-indigo-600' },
-  { key: 'Out For Delivery',label: 'Out For Delivery', color: 'amber',   activeBg: 'bg-amber-500', activeText: 'text-white', dotColor: 'bg-amber-500' },
-  { key: 'Delivered',       label: 'Delivered',         color: 'emerald',activeBg: 'bg-emerald-600', activeText: 'text-white', dotColor: 'bg-emerald-600' },
-  { key: 'Undelivered',     label: 'Undelivered',       color: 'red',     activeBg: 'bg-red-600', activeText: 'text-white', dotColor: 'bg-red-600' },
-  { key: 'RTO',             label: 'RTO',               color: 'rose',   activeBg: 'bg-rose-700', activeText: 'text-white', dotColor: 'bg-rose-700' },
-  { key: 'Cancelled',       label: 'Cancelled',         color: 'slate',  activeBg: 'bg-slate-500', activeText: 'text-white', dotColor: 'bg-slate-500' },
+  { key: 'All',              label: 'All',              color: 'slate',   activeBg: 'bg-slate-900',   activeText: 'text-white', dotColor: 'bg-slate-500' },
+  { key: 'Ready To Ship',    label: 'Ready To Ship',    color: 'orange',  activeBg: 'bg-orange-500',  activeText: 'text-white', dotColor: 'bg-orange-500' },
+  { key: 'Shipped',          label: 'Shipped',          color: 'blue',    activeBg: 'bg-blue-600',    activeText: 'text-white', dotColor: 'bg-blue-600' },
+  { key: 'In Transit',       label: 'In Transit',       color: 'indigo',  activeBg: 'bg-indigo-600',  activeText: 'text-white', dotColor: 'bg-indigo-600' },
+  { key: 'Out For Delivery', label: 'Out For Delivery', color: 'amber',   activeBg: 'bg-amber-500',   activeText: 'text-white', dotColor: 'bg-amber-500' },
+  { key: 'Delivered',        label: 'Delivered',        color: 'emerald', activeBg: 'bg-emerald-600', activeText: 'text-white', dotColor: 'bg-emerald-600' },
+  { key: 'Undelivered',      label: 'Undelivered',      color: 'red',     activeBg: 'bg-red-600',     activeText: 'text-white', dotColor: 'bg-red-600' },
+  { key: 'RTO',              label: 'RTO',              color: 'rose',    activeBg: 'bg-rose-700',    activeText: 'text-white', dotColor: 'bg-rose-700' },
+  { key: 'Cancelled',        label: 'Cancelled',        color: 'slate',   activeBg: 'bg-slate-500',   activeText: 'text-white', dotColor: 'bg-slate-500' },
 ];
 
-// Map logistics status → tab key
-function getTabKeyFromStatus(status: string): string {
-  const s = status?.toLowerCase() || '';
-  // WARNING: 'undelivered'.includes('delivered') === true!
-  // Always check more specific/negative statuses BEFORE generic 'delivered'.
-  if (s.includes('undelivered') || s.includes('ndr')) return 'Undelivered';
-  if (s.includes('delivered') && !s.includes('rto')) return 'Delivered';
-  if (s.includes('ready to ship') || s === 'order booked') return 'Ready To Ship';
-  if (s.includes('ready for pickup') || s.includes('picked up') || s.includes('pickup')) return 'Ready For Pickup';
-  if (s.includes('shipped') || s === 'packed') return 'Shipped';
-  if (s.includes('in transit') || s.includes('dispatched')) return 'In Transit';
-  if (s.includes('out for delivery') || s.includes('ofd')) return 'Out For Delivery';
-  if (s.includes('rto')) return 'RTO';
-  if (s.includes('cancelled') || s.includes('cancel')) return 'Cancelled';
-  return 'All';
-}
+// Statuses this module manages (from ORDER_STATUSES). Order Booked/Packing/Packed
+// live in the Orders page; Shipped+ is handed over here.
+const LOGISTICS_STATUSES = new Set([
+  'Ready To Ship', 'Shipped', 'In Transit', 'Out For Delivery',
+  'Undelivered', 'Delivered', 'RTO', 'Cancelled',
+]);
 
-// ===== Status colors for table badge (matching spec) =====
+// ===== Status colors for table badge =====
 const STATUS_BADGE_COLORS: Record<string, string> = {
   'Ready To Ship':     'bg-orange-100 text-orange-700 border-orange-200',
-  'Ready For Pickup':  'bg-purple-100 text-purple-700 border-purple-200',
   'Shipped':           'bg-blue-100 text-blue-700 border-blue-200',
   'In Transit':        'bg-indigo-100 text-indigo-700 border-indigo-200',
   'Out For Delivery':  'bg-amber-100 text-amber-700 border-amber-200',
@@ -88,17 +78,14 @@ const STATUS_BADGE_COLORS: Record<string, string> = {
 };
 
 function getBadgeColor(status: string): string {
-  const tabKey = getTabKeyFromStatus(status);
-  return STATUS_BADGE_COLORS[tabKey] || 'bg-slate-100 text-slate-600 border-slate-200';
+  return STATUS_BADGE_COLORS[status] || 'bg-slate-100 text-slate-600 border-slate-200';
 }
 
 // ===== Shipment Data Row Interface =====
 interface ShipmentRowData {
   id: number;
   orderId: number;
-  source: 'logistics' | 'order';
   status: string;
-  displayStatus: string;
   dispatchDate: string;
   lastUpdate: string;
   order?: any;
@@ -114,60 +101,28 @@ function LogisticsContent() {
   const [copiedAWB, setCopiedAWB] = useState<number | null>(null);
   const [page, setPage] = useState(0);
 
-  const baseLogistics = useLiveQuery(() => db.logistics.reverse().toArray(), []) || [];
-
-  const orderMap = useMemo(() => new Map(orders.map(o => [o.id!, o])), [orders]);
   const customerMap = useMemo(() => new Map(customers.map(c => [c.id!, c])), [customers]);
 
-  // Build unified shipment list: logistics records + pre-logistics 'Ready To Ship' orders
+  // Build shipment list directly from ORDERS — single source of truth.
   const allShipments: ShipmentRowData[] = useMemo(() => {
     const result: ShipmentRowData[] = [];
-
-    // 1. Logistics records
-    for (const log of baseLogistics) {
-      const order = orderMap.get(log.orderId);
-      if (!order) continue;
+    for (const order of orders) {
+      if (!LOGISTICS_STATUSES.has(order.status)) continue;
       const customer = customerMap.get(order.customerId);
-      const rawStatus = log.status || '';
       result.push({
-        id: log.id!,
-        orderId: log.orderId,
-        source: 'logistics',
-        status: rawStatus,
-        displayStatus: getTabKeyFromStatus(rawStatus),
-        dispatchDate: log.dispatchDate,
-        lastUpdate: log.lastUpdate,
+        id: order.id!,
+        orderId: order.id!,
+        status: order.status,
+        dispatchDate: order.shipmentDate || '',
+        lastUpdate: order.updatedAt || order.createdAt || '',
         order,
         customer,
       });
     }
-
-    // 2. 'Ready To Ship' orders WITHOUT logistics records
-    const logOrderIds = new Set(baseLogistics.map(l => l.orderId));
-    for (const order of orders) {
-      if (order.status === 'Ready To Ship' && !logOrderIds.has(order.id!)) {
-        const customer = customerMap.get(order.customerId);
-        result.push({
-          id: order.id!,
-          orderId: order.id!,
-          source: 'order',
-          status: 'Ready To Ship',
-          displayStatus: 'Ready To Ship',
-          dispatchDate: order.shipmentDate || '',
-          lastUpdate: order.updatedAt,
-          order,
-          customer,
-        });
-      }
-    }
-
-    // Sort by lastUpdate descending
     result.sort((a, b) => new Date(b.lastUpdate).getTime() - new Date(a.lastUpdate).getTime());
     return result;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseLogistics, orders, orderMap, customerMap]);
+  }, [orders, customerMap]);
 
-  // Date-filtered shipments for accurate tab counts and stats
   const { filterByDate } = useDateFilter();
 
   const dateFilteredShipments = useMemo(() => {
@@ -178,10 +133,9 @@ function LogisticsContent() {
   const tabCounts = useMemo(() => {
     const counts: Record<string, number> = { All: dateFilteredShipments.length };
     for (const s of dateFilteredShipments) {
-      const key = s.displayStatus;
+      const key = s.status;
       counts[key] = (counts[key] || 0) + 1;
     }
-    // Ensure all tabs have a count
     for (const tab of STATUS_TABS) {
       if (!counts[tab.key]) counts[tab.key] = 0;
     }
@@ -191,11 +145,9 @@ function LogisticsContent() {
   // All filtered (not yet paginated)
   const allFiltered = useMemo(() => {
     let filtered = dateFilteredShipments;
-    
     if (activeTab !== 'All') {
-      filtered = filtered.filter(s => s.displayStatus === activeTab);
+      filtered = filtered.filter(s => s.status === activeTab);
     }
-
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(s => {
@@ -210,7 +162,6 @@ function LogisticsContent() {
         );
       });
     }
-
     return filtered;
   }, [dateFilteredShipments, activeTab, searchTerm]);
 
@@ -225,7 +176,6 @@ function LogisticsContent() {
   // Summary stats (respects date filter)
   const todayStr = new Date().toDateString();
   const summary = useMemo(() => {
-    // Extract order IDs from date-filtered shipments to cross-reference with orders
     const filteredOrderIds = new Set(dateFilteredShipments.map(s => s.orderId));
     const ordersForStats = orders.filter(o => filteredOrderIds.has(o.id!));
     return {
@@ -238,7 +188,7 @@ function LogisticsContent() {
         if (o.status !== 'Delivered') return false;
         try { return new Date(o.updatedAt).toDateString() === todayStr; } catch { return false; }
       }).length,
-      pendingShipment: ordersForStats.filter(o => o.status === 'Ready To Ship' || o.status === 'Packed').length,
+      pendingShipment: ordersForStats.filter(o => o.status === 'Ready To Ship').length,
       rto: ordersForStats.filter(o => o.status === 'RTO').length,
       cancelled: ordersForStats.filter(o => o.status === 'Cancelled').length,
     };
@@ -249,7 +199,6 @@ function LogisticsContent() {
   const [tempAWB, setTempAWB] = useState('');
   const [tempCourier, setTempCourier] = useState('');
 
-  // Stable callback references for useMemo dependency arrays
   const handleCopyAWB = useCallback(async (trackingId: string, rowId: number) => {
     try {
       await navigator.clipboard.writeText(trackingId);
@@ -263,7 +212,7 @@ function LogisticsContent() {
   const shipmentColumns: VirtualTableColumn<any>[] = useMemo(() => {
     const handleSaveAWB = async (ship: any) => {
       try {
-        await db.orders.update(ship.orderId, { trackingId: tempAWB, courier: tempCourier });
+        await db.orders.update(ship.orderId, { trackingId: tempAWB, courier: tempCourier, updatedAt: new Date().toISOString() });
         toast.success('AWB/Courier updated');
         setEditingShipId(null);
       } catch { toast.error('Failed to update'); }
@@ -342,28 +291,18 @@ function LogisticsContent() {
         header: 'Status',
         width: '150px',
         render: (ship: any) => {
-          const currentStatus = ship.displayStatus;
-          const s = currentStatus?.toLowerCase() || '';
-          let nextOptions: string[] = [];
-          if (s.includes('undelivered') || s.includes('ndr')) nextOptions = ['Out For Delivery', 'Delivered', 'RTO', 'Cancelled'];
-          else if (s.includes('delivered') && !s.includes('rto')) nextOptions = [];
-          else if (s.includes('ready to ship')) nextOptions = ['Shipped', 'Ready For Pickup', 'Cancelled'];
-          else if (s.includes('ready for pickup') || s.includes('picked up') || s.includes('pickup')) nextOptions = ['Shipped', 'In Transit', 'Cancelled'];
-          else if (s.includes('shipped') || s.includes('packed')) nextOptions = ['In Transit', 'Out For Delivery', 'Undelivered', 'RTO', 'Cancelled'];
-          else if (s.includes('in transit')) nextOptions = ['Out For Delivery', 'Delivered', 'Undelivered', 'RTO', 'Cancelled'];
-          else if (s.includes('out for delivery') || s.includes('ofd')) nextOptions = ['Delivered', 'Undelivered', 'RTO', 'Cancelled'];
-          else nextOptions = ['Shipped', 'In Transit', 'Delivered', 'RTO', 'Cancelled'];
-          if (!nextOptions.includes(currentStatus)) nextOptions = [currentStatus, ...nextOptions];
-
-          const badgeColor = getBadgeColor(ship.status);
-          return nextOptions.length > 1 ? (
-            <select value={currentStatus} onChange={e => handleStatusChange(ship, e.target.value)}
-              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold outline-none border cursor-pointer ${badgeColor}`}>
-              {nextOptions.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          ) : (
-            <span className={`inline-block px-2.5 py-1.5 rounded-lg text-[10px] font-bold border ${badgeColor}`}>{currentStatus}</span>
-          );
+          const currentStatus = ship.status;
+          const nextOptions = nextStatusOptions(currentStatus);
+          const badgeColor = getBadgeColor(currentStatus);
+          if (nextOptions.length > 1) {
+            return (
+              <select value={currentStatus} onChange={e => handleStatusChange(ship, e.target.value)}
+                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold outline-none border cursor-pointer ${badgeColor}`}>
+                {nextOptions.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            );
+          }
+          return <span className={`inline-block px-2.5 py-1.5 rounded-lg text-[10px] font-bold border ${badgeColor}`}>{currentStatus}</span>;
         }
       },
       {
@@ -384,7 +323,7 @@ function LogisticsContent() {
         header: 'Expected Delivery',
         width: '100px',
         render: (ship: any) => {
-          const expectedDelivery = ship.dispatchDate 
+          const expectedDelivery = ship.dispatchDate
             ? new Date(new Date(ship.dispatchDate).getTime() + 7 * 86400000).toISOString()
             : '';
           return expectedDelivery ? (
@@ -422,74 +361,28 @@ function LogisticsContent() {
         )
       },
     ];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingShipId, tempAWB, tempCourier, copiedAWB, handleCopyAWB]);
 
-  // ===== Handlers with useCallback for stable references =====
+  // ===== Handlers =====
+  // UNIFIED write path — same function used by Orders + NDR. Updates the order
+  // row (master), syncs customer counters + timeline + scan history.
   const handleStatusChange = useCallback(async (shipment: ShipmentRowData, newStatus: string) => {
     try {
-      if (shipment.source === 'logistics') {
-        await db.logistics.update(shipment.id, {
-          status: newStatus as any,
-          lastUpdate: new Date().toISOString()
-        });
-      } else {
-        const now = new Date().toISOString();
-        const existingLog = await db.logistics.where('orderId').equals(shipment.orderId).first();
-        if (existingLog) {
-          await db.logistics.update(existingLog.id!, {
-            status: newStatus as any,
-            lastUpdate: now,
-            updatedAt: now,
-          });
-        } else {
-          await db.logistics.add({
-            orderId: shipment.orderId,
-            status: newStatus as any,
-            dispatchDate: shipment.dispatchDate || now,
-            lastUpdate: now,
-            createdAt: now,
-            updatedAt: now,
-          });
-        }
+      const order = await db.orders.get(shipment.orderId);
+      if (!order) return;
+      const meta: any = { agentName: 'Admin' };
+      if (newStatus === 'Shipped' && !order.trackingId) {
+        meta.trackingId = `TRK${Date.now().toString().slice(-8)}`;
+        meta.shipmentDate = new Date().toISOString();
+        meta.courier = order.courier || 'Delhivery';
       }
-
-      const oldOrderStatus = (await db.orders.get(shipment.orderId))?.status || shipment.displayStatus;
-      await db.orders.update(shipment.orderId, {
-        status: newStatus as any,
-        updatedAt: new Date().toISOString()
-      });
-
-      await syncOrderToCentralStatus(shipment.orderId, newStatus, oldOrderStatus);
-
-      const logEntry = await db.logistics.where('orderId').equals(shipment.orderId).first();
-      if (logEntry) {
-        await db.shipmentScans.add({
-          orderId: shipment.orderId,
-          logisticsId: logEntry.id!,
-          status: newStatus,
-          normalizedStatus: newStatus as any,
-          remarks: 'Manual status update from Logistics',
-          scanDate: new Date().toISOString(),
-          source: 'manual',
-          createdAt: new Date().toISOString()
-        });
+      if (newStatus === 'Delivered' && !order.shipmentDate) {
+        meta.shipmentDate = new Date().toISOString();
       }
-
-      if (shipment.customer) {
-        await db.timelineLogs.add({
-          customerId: shipment.customer.id!,
-          entityType: 'Order',
-          entityId: shipment.orderId,
-          action: 'Logistics Update',
-          statusFrom: shipment.displayStatus,
-          statusTo: newStatus,
-          notes: `Courier status changed from ${shipment.displayStatus} to ${newStatus}`,
-          agentName: 'Admin',
-          createdAt: new Date().toISOString()
-        });
-      }
-
-      toast.success(`Shipment moved to ${newStatus}`);
+      const r = await updateOrderStatus(shipment.orderId, newStatus, meta);
+      if (r.changed) toast.success(`Shipment moved to ${newStatus}`);
+      else toast(`Already in ${newStatus}`, { icon: 'ℹ️' });
     } catch (e) {
       toast.error('Failed to update shipment status');
     }
@@ -646,9 +539,9 @@ function LogisticsContent() {
             <Truck size={36} className="text-slate-300 mb-3" />
             <p className="font-medium">No shipments found</p>
             <p className="text-xs mt-1">
-              {activeTab !== 'All' 
+              {activeTab !== 'All'
                 ? `No shipments in "${activeTab}" status. Try a different filter.`
-                : searchTerm 
+                : searchTerm
                   ? 'No results match your search criteria.'
                   : 'Shipments will appear once orders are dispatched.'}
             </p>
@@ -681,7 +574,20 @@ function SummaryCard({ label, value, icon: Icon, color }: { label: string; value
   );
 }
 
-// ShipmentRow removed — now handled inline in VirtualTable columns
+// Allowed forward/backward moves per status — enforces the admin-only pipeline.
+function nextStatusOptions(status: string): string[] {
+  switch (status) {
+    case 'Ready To Ship':    return ['Ready To Ship', 'Shipped', 'Cancelled'];
+    case 'Shipped':          return ['Shipped', 'In Transit', 'Out For Delivery', 'Undelivered', 'RTO', 'Cancelled'];
+    case 'In Transit':       return ['In Transit', 'Out For Delivery', 'Delivered', 'Undelivered', 'RTO', 'Cancelled'];
+    case 'Out For Delivery': return ['Out For Delivery', 'Delivered', 'Undelivered', 'RTO', 'Cancelled'];
+    case 'Undelivered':      return ['Undelivered', 'Out For Delivery', 'Delivered', 'RTO', 'Cancelled'];
+    case 'Delivered':        return ['Delivered'];
+    case 'RTO':              return ['RTO'];
+    case 'Cancelled':        return ['Cancelled'];
+    default:                 return [status];
+  }
+}
 
 // =====================================================================
 // Tabbed wrapper: Logistics (shipments) + NDR + Undelivered cases.

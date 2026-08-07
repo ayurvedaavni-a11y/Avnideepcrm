@@ -46,7 +46,6 @@ export function BackupCenter() {
     customers: useLiveQuery(() => db.customers.count(), []) || 0,
     leads: useLiveQuery(() => db.leads.count(), []) || 0,
     orders: useLiveQuery(() => db.orders.count(), []) || 0,
-    logistics: useLiveQuery(() => db.logistics.count(), []) || 0,
     ndrCases: useLiveQuery(() => db.ndrCases.count(), []) || 0,
     invoices: useLiveQuery(() => db.invoices.count(), []) || 0,
     payments: useLiveQuery(() => db.payments.count(), []) || 0,

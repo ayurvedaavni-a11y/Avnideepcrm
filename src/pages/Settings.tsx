@@ -113,11 +113,10 @@ function SettingsContent() {
 
       const backupObj = JSON.parse(result.data);
 
-      await db.transaction('rw', [db.customers, db.leads, db.orders, db.logistics, db.ndrCases, db.timelineLogs, db.notifications, db.invoices], async () => {
+      await db.transaction('rw', [db.customers, db.leads, db.orders, db.ndrCases, db.timelineLogs, db.notifications, db.invoices], async () => {
         await db.customers.clear();
         await db.leads.clear();
         await db.orders.clear();
-        await db.logistics.clear();
         await db.ndrCases.clear();
         await db.timelineLogs.clear();
         await db.notifications.clear();
@@ -126,7 +125,6 @@ function SettingsContent() {
         if (backupObj.customers) await db.customers.bulkAdd(backupObj.customers);
         if (backupObj.leads) await db.leads.bulkAdd(backupObj.leads);
         if (backupObj.orders) await db.orders.bulkAdd(backupObj.orders);
-        if (backupObj.logistics) await db.logistics.bulkAdd(backupObj.logistics);
         if (backupObj.ndrCases) await db.ndrCases.bulkAdd(backupObj.ndrCases);
         if (backupObj.timelineLogs) await db.timelineLogs.bulkAdd(backupObj.timelineLogs);
         if (backupObj.notifications) await db.notifications.bulkAdd(backupObj.notifications);

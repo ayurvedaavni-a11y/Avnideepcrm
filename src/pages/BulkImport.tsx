@@ -143,7 +143,7 @@ export function BulkImport() {
       const customers = report.createdIds.filter((c) => c.kind === 'customer').map((c) => c.id);
       const leads = report.createdIds.filter((c) => c.kind === 'lead').map((c) => c.id);
       const orders = report.createdIds.filter((c) => c.kind === 'order').map((c) => c.id);
-      await db.transaction('rw', [db.customers, db.leads, db.orders, db.timelineLogs, db.logistics, db.ndrCases], async () => {
+      await db.transaction('rw', [db.customers, db.leads, db.orders, db.timelineLogs, db.ndrCases], async () => {
         if (leads.length) await db.leads.bulkDelete(leads);
         if (orders.length) {
           // Revert the customer aggregate counters this import incremented
@@ -159,7 +159,7 @@ export function BulkImport() {
             }
           }
           await db.orders.bulkDelete(orders);
-          await db.logistics.where('orderId').anyOf(orders).delete();
+          // (No logistics table — order.status is the single source of truth.)
           await db.ndrCases.where('orderId').anyOf(orders).delete();
         }
         if (customers.length) {
@@ -208,7 +208,7 @@ export function BulkImport() {
 
     if (!mobile) { ctx.failed++; ctx.errors.push(`Row ${rowNo},Missing/invalid mobile`); return; }
 
-    await db.transaction('rw', [db.customers, db.leads, db.orders, db.timelineLogs, db.logistics, db.ndrCases], async () => {
+    await db.transaction('rw', [db.customers, db.leads, db.orders, db.timelineLogs, db.ndrCases], async () => {
       let customer = await db.customers.where('mobile').equals(mobile).first();
       let customerId: number;
 
@@ -327,12 +327,7 @@ export function BulkImport() {
       action: 'Order Imported via Bulk', statusTo: p.status,
       notes: p.notes || 'Imported from Excel', agentName: 'Bulk Import', createdAt: p.now,
     });
-    if (['Shipped', 'Delivered', 'RTO', 'Cancelled', 'In Transit', 'Out For Delivery', 'Undelivered'].includes(p.status)) {
-      await db.logistics.add({
-        orderId: createdId, status: p.status as any,
-        dispatchDate: p.now, lastUpdate: p.now, createdAt: p.now, updatedAt: p.now,
-      });
-    }
+    // (No logistics record — order.status is the single source of truth.)
     if (p.status === 'Undelivered') {
       await db.ndrCases.add({
         orderId: createdId, customerId: p.customerId, reason: 'Imported as Undelivered',

@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { cleanupAllDuplicateLeads } from './workflow';
+import { cleanupAllDuplicateLeads, migrateLogisticsToOrders } from './workflow';
 
 export interface Customer {
   id?: number;
@@ -394,5 +394,13 @@ db.open().then(async () => {
   } catch (error) {
     // Silent fail — dedup is a safety net, not a critical path
     console.warn('[DB] Startup dedup skipped:', error);
+  }
+  // SINGLE SOURCE OF TRUTH: fold any legacy logistics-record status into the
+  // order and drop the local table — order.status is the only master status.
+  try {
+    const n = await migrateLogisticsToOrders();
+    if (n > 0) console.log('[DB] Reconciled', n, 'order(s) from legacy logistics records');
+  } catch (error) {
+    console.warn('[DB] Logistics reconciliation skipped:', error);
   }
 });

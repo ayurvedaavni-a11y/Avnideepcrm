@@ -579,3 +579,148 @@ export async function syncOrderToCentralStatus(orderId: number, newStatus: any, 
     console.error('Failed to sync order-level status', error);
   }
 }
+
+// =====================================================================
+// SINGLE SOURCE OF TRUTH — Unified Order Status Engine
+// =====================================================================
+// The order row (db.orders / crm_orders.status) is the ONLY master status.
+// The legacy `logistics` table was a parallel status store that could drift
+// (order.status='Delivered' while the logistics record said 'Shipped').
+// Every page (Orders, Logistics, NDR, Dashboard, Analytics) now reads and
+// writes order.status exclusively through updateOrderStatus().
+export const ORDER_STATUSES = [
+  'Order Booked', 'Packing', 'Packed', 'Ready To Ship', 'Shipped',
+  'In Transit', 'Out For Delivery', 'Undelivered', 'Delivered', 'RTO', 'Cancelled',
+] as const;
+export type OrderStatusValue = (typeof ORDER_STATUSES)[number];
+
+export const ORDER_STATUS_RANK: Record<string, number> = {
+  'Order Booked': 0, 'Packing': 1, 'Packed': 2, 'Ready To Ship': 3,
+  'Ready For Pickup': 3, 'Shipped': 4, 'In Transit': 5, 'Out For Delivery': 6,
+  'Undelivered': 7, 'Delivered': 8, 'Returned': 9, 'RTO': 9, 'Cancelled': 10,
+};
+
+// Legacy statuses that existed in the old logistics table (and ORDER_STATUS_RANK
+// aliases) but are NOT valid crm_orders.status values on the worker. Mapping them
+// to canonical pipeline statuses prevents 400 'Invalid order status' on push.
+const STATUS_ALIASES: Record<string, string> = {
+  'Ready For Pickup': 'Ready To Ship',
+  'Picked Up': 'Shipped',
+  'Pickup': 'Shipped',
+  'Returned': 'RTO',
+};
+
+export function normalizeOrderStatus(status: string): string {
+  return STATUS_ALIASES[status] || status;
+}
+
+export function isShipmentStatus(status: string): boolean {
+  const r = ORDER_STATUS_RANK[status];
+  return r != null && r >= 4; // Shipped and beyond → Logistics module
+}
+
+export function isOrderStatusValid(status: string): boolean {
+  return ORDER_STATUS_RANK[status] != null;
+}
+
+interface OrderStatusMeta {
+  agentName?: string;
+  trackingId?: string;
+  courier?: string;
+  shipmentDate?: string;
+  notes?: string;
+}
+
+/** Advance an order's status — the ONLY write path used by Orders, Logistics
+ *  and NDR. Keeps order.status, customer central status/counters, timeline
+ *  and scan history in sync, and removes any stale legacy logistics record. */
+export async function updateOrderStatus(orderId: number, newStatus: string, meta: OrderStatusMeta = {}) {
+  const order = await db.orders.get(orderId);
+  if (!order) throw new Error('Order not found');
+  const oldStatus = order.status;
+  if (oldStatus === newStatus) return { changed: false as const };
+
+  const now = new Date().toISOString();
+  const update: any = { status: newStatus, updatedAt: now };
+  if (meta.trackingId != null) update.trackingId = meta.trackingId;
+  if (meta.courier != null) update.courier = meta.courier;
+  if (meta.shipmentDate != null) update.shipmentDate = meta.shipmentDate;
+  await db.orders.update(orderId, update);
+
+  await syncOrderToCentralStatus(orderId, newStatus, oldStatus);
+
+  const action = newStatus === 'Packing' ? 'Order Packing Started' : `Order ${newStatus}`;
+  const notes = meta.notes
+    || (newStatus === 'Shipped' && meta.trackingId ? `Tracking: ${meta.trackingId}` : '')
+    || (newStatus === 'Delivered' ? 'Order delivered successfully' : '')
+    || (newStatus === 'RTO' ? 'Order returned to sender' : '');
+  await db.timelineLogs.add({
+    customerId: order.customerId,
+    entityType: 'Order',
+    entityId: orderId,
+    action,
+    statusFrom: oldStatus,
+    statusTo: newStatus,
+    notes,
+    agentName: meta.agentName || 'Admin',
+    createdAt: now,
+  });
+
+  try {
+    await db.shipmentScans.add({
+      orderId,
+      logisticsId: 0,
+      status: newStatus,
+      normalizedStatus: newStatus,
+      remarks: `Status changed from ${oldStatus} to ${newStatus}`,
+      scanDate: now,
+      source: 'manual',
+      createdAt: now,
+    });
+  } catch { /* scan history is best-effort */ }
+
+  // Legacy logistics records are deprecated — never let them drift again.
+  try { await db.logistics.where('orderId').equals(orderId).delete(); } catch {}
+
+  return { changed: true as const, oldStatus, newStatus };
+}
+
+/** One-time reconciliation: fold any legacy logistics-record status into the
+ *  order (furthest-along wins), then drop the local table. Idempotent — after
+ *  the first run the table is empty. Runs on every app start. */
+export async function migrateLogisticsToOrders(): Promise<number> {
+  const rows = await db.logistics.toArray();
+  let reconciled = 0;
+  for (const log of rows) {
+    try {
+      const order = await db.orders.get(log.orderId);
+      if (order) {
+        const oldStatus = order.status;
+        const canonical = normalizeOrderStatus(log.status);
+        const logRank = ORDER_STATUS_RANK[canonical];
+        const orderRank = ORDER_STATUS_RANK[oldStatus];
+        if (logRank != null && (logRank > (orderRank ?? -1))) {
+          await db.orders.update(order.id!, { status: canonical as any, updatedAt: new Date().toISOString() });
+          await syncOrderToCentralStatus(order.id!, canonical, oldStatus);
+          await db.timelineLogs.add({
+            customerId: order.customerId,
+            entityType: 'Order',
+            entityId: order.id!,
+            action: `Order ${canonical}`,
+            statusFrom: oldStatus,
+            statusTo: canonical,
+            notes: 'Reconciled from legacy logistics record',
+            agentName: 'System',
+            createdAt: new Date().toISOString(),
+          });
+          reconciled++;
+        }
+      }
+      await db.logistics.delete(log.id!);
+    } catch {
+      try { await db.logistics.delete(log.id!); } catch {}
+    }
+  }
+  try { await db.logistics.clear(); } catch {}
+  return reconciled;
+}

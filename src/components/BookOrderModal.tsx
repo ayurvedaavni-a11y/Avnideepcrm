@@ -193,15 +193,7 @@ export function BookOrderModal({ leadId, onClose }: Props) {
         updatedAt: new Date().toISOString()
       });
 
-      // 3. Create Logistics
-      await db.logistics.add({
-        orderId: newOrderId,
-        status: 'Shipped',
-        dispatchDate: new Date().toISOString(),
-        lastUpdate: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
+      // 3. (No logistics record — order.status is the single source of truth.)
 
       // 4. Reduce Inventory
       if (selectedProduct?.id) {

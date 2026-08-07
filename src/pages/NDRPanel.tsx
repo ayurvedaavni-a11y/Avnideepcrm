@@ -9,7 +9,7 @@ import X from 'lucide-react/dist/esm/icons/x'
 import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left'
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right'
 import { toast } from 'react-hot-toast';
-import { syncOrderToCentralStatus } from '../db/workflow';
+import { updateOrderStatus } from '../db/workflow';
 import { useDateFilter } from '../context/DateFilterContext';
 
 // ===== Pagination =====
@@ -111,17 +111,13 @@ export function NDRPanel() {
         else if (status === 'Out For Reattempt') finalStatus = 'Out For Delivery';
         else if (['Fake Customer', 'Customer Refused', 'Wrong Address', 'Wrong Number'].includes(status)) finalStatus = 'Cancelled';
 
-        const oldOrderStatus = (await db.orders.get(ndrCase.orderId))?.status || 'Undelivered';
-      await db.orders.update(ndrCase.orderId, { status: finalStatus });
-        const logisticsEntry = await db.logistics.where('orderId').equals(ndrCase.orderId).first();
-        if (logisticsEntry) {
-          await db.logistics.update(logisticsEntry.id!, { status: finalStatus, lastUpdate: new Date().toISOString() });
-        }
+        // UNIFIED write path: bumps updated_at (delta-sync safe), syncs customer
+        // counters, appends an Order {status} timeline entry + scan history.
+        await updateOrderStatus(ndrCase.orderId, finalStatus, { agentName: 'Admin' });
 
         if (status !== 'Reattempt Scheduled' && status !== 'Out For Reattempt') {
           await db.ndrCases.update(caseId, { status: 'Resolved', updatedAt: new Date().toISOString() });
         }
-        await syncOrderToCentralStatus(ndrCase.orderId, finalStatus, oldOrderStatus);
       }
 
       toast.success(`NDR Action saved.`);
