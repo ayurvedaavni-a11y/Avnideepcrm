@@ -9,7 +9,7 @@
 // a build made without the env var (e.g. Vercel / GitHub Actions) would call
 // http://localhost:8787 in production.
 const API_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '') ||
+  (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/+$/, '') ||
   'https://avnideep-crm-api.ayurvedaavni.workers.dev';
 
 const TOKEN_KEY = 'crm_auth_token';
