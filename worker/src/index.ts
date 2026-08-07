@@ -508,6 +508,13 @@ async function handleDelete(env: Env, request: Request, user: Record<string, any
     return json({ error: 'Forbidden — admin only' }, 403);
   }
   await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(body.id).run();
+  // Incremental sync tombstone — lets other clients remove this row locally
+  // without a full re-pull. Additive; never blocks the delete itself.
+  try {
+    await env.DB.prepare(
+      'INSERT INTO crm_sync_tombstones (tbl, row_id, deleted_at) VALUES (?, ?, ?)'
+    ).bind(table, Number(body.id) || 0, new Date().toISOString()).run();
+  } catch { /* tombstone table absent — delete still succeeds */ }
   return json({ ok: true });
 }
 
@@ -517,6 +524,12 @@ async function handlePull(env: Env, _request: Request, user: Record<string, any>
   const requested = url.searchParams.get('tables');
   const requestedNames = requested ? requested.split(',') : [...SYNC_TABLE_NAMES];
   const names = requestedNames.filter((n) => canAccessTable(user, n));
+  // OPTIONAL incremental params — when absent the response is the exact same
+  // full pull as before (old clients are unaffected). `since` limits rows to
+  // those changed after the cursor; `deletedSince` returns tombstones so
+  // other clients can prune locally-deleted rows without a full re-pull.
+  const since = String(url.searchParams.get('since') || '');
+  const deletedSince = String(url.searchParams.get('deletedSince') || '');
   const rows: Record<string, any[]> = {};
   for (const name of names) {
     if (!TABLES[name]) continue;
@@ -524,12 +537,22 @@ async function handlePull(env: Env, _request: Request, user: Record<string, any>
     // themselves. (Previously the whole table was returned and the UI hid the
     // rest — any telecaller could pull everyone's lead data via the API.)
     if (name === 'crm_leads' && user && user.role !== 'admin') {
-      // Isolation by assigned_to (id) first; name only for legacy rows where
-      // assigned_to is missing/0. Prevents same-name telecaller cross-leaks.
-      const res = await env.DB.prepare(
-        "SELECT * FROM crm_leads WHERE assigned_to = ? OR ((assigned_to IS NULL OR assigned_to = '' OR assigned_to = '0') AND assigned_agent = ?) ORDER BY id ASC"
-      )
-        .bind(user.id, user.full_name)
+      const sql = since
+        ? "SELECT * FROM crm_leads WHERE (assigned_to = ? OR ((assigned_to IS NULL OR assigned_to = '' OR assigned_to = '0') AND assigned_agent = ?)) AND updated_at > ? ORDER BY id ASC"
+        : "SELECT * FROM crm_leads WHERE assigned_to = ? OR ((assigned_to IS NULL OR assigned_to = '' OR assigned_to = '0') AND assigned_agent = ?) ORDER BY id ASC";
+      const res = since
+        ? await env.DB.prepare(sql).bind(user.id, user.full_name, since).all()
+        : await env.DB.prepare(sql).bind(user.id, user.full_name).all();
+      rows[name] = (res.results || []).map((r) => normalizeRow(name, r as Record<string, any>));
+      continue;
+    }
+    if (since) {
+      // Tables with an updated_at column sync on edits; append-only tables
+      // (timeline, call logs, notifications, follow-ups) sync on created_at.
+      const def = TABLES[name];
+      const col = def.columns.includes('updated_at') ? 'updated_at' : 'created_at';
+      const res = await env.DB.prepare(`SELECT * FROM ${name} WHERE ${col} > ? ORDER BY id ASC`)
+        .bind(since)
         .all();
       rows[name] = (res.results || []).map((r) => normalizeRow(name, r as Record<string, any>));
       continue;
@@ -537,7 +560,22 @@ async function handlePull(env: Env, _request: Request, user: Record<string, any>
     const res = await env.DB.prepare(`SELECT * FROM ${name} ORDER BY id ASC`).all();
     rows[name] = (res.results || []).map((r) => normalizeRow(name, r as Record<string, any>));
   }
-  return json({ rows });
+  // Incremental deletes: rows removed from the cloud since deletedSince.
+  let deleted: Record<string, { id: number; deleted_at: string }[]> = {};
+  if (deletedSince) {
+    const res = await env.DB.prepare(
+      'SELECT tbl, row_id, deleted_at FROM crm_sync_tombstones WHERE deleted_at > ? ORDER BY deleted_at ASC LIMIT 10000'
+    ).bind(deletedSince).all();
+    for (const r of (res.results || []) as Record<string, any>[]) {
+      const tbl = String(r.tbl || '');
+      if (!names.includes(tbl)) continue;
+      (deleted[tbl] = deleted[tbl] || []).push({
+        id: Number(r.row_id) || 0,
+        deleted_at: String(r.deleted_at || ''),
+      });
+    }
+  }
+  return json({ rows, deleted, pulledAt: new Date().toISOString() });
 }
 
 async function handleCount(env: Env, _request: Request, user: Record<string, any> | null, url: URL): Promise<Response> {

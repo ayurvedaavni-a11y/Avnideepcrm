@@ -122,8 +122,12 @@ export const api = {
     }),
   deleteRow: (table: string, id: number) =>
     request<{ ok: boolean }>('/api/sync/delete', { method: 'POST', body: { table, id } }),
-  pullAll: (tables: string[]) =>
-    request<{ rows: Record<string, any[]> }>(`/api/sync/pull?tables=${encodeURIComponent(tables.join(','))}`),
+  pullAll: (tables: string[], opts?: { since?: string; deletedSince?: string }) => {
+    let q = `/api/sync/pull?tables=${encodeURIComponent(tables.join(','))}`;
+    if (opts?.since) q += `&since=${encodeURIComponent(opts.since)}`;
+    if (opts?.deletedSince) q += `&deletedSince=${encodeURIComponent(opts.deletedSince)}`;
+    return request<{ rows: Record<string, any[]>; deleted?: Record<string, any[]>; pulledAt?: string }>(q);
+  },
   countTable: (table: string) =>
     request<{ count: number }>(`/api/sync/count?table=${encodeURIComponent(table)}`),
 

@@ -30,6 +30,8 @@ import { autoGenerateInvoice, downloadInvoicePDF } from '../db/invoiceEngine';
 import { syncOrderToCentralStatus } from '../db/workflow';
 import { Customer360Profile } from '../components/Customer360Profile';
 import { useDateFilter } from '../context/DateFilterContext';
+import { useAuth } from '../context/AuthContext';
+import { DeliveredCustomers } from './DeliveredCustomers';
 
 // ===== Pipeline Stages Definition =====
 const PIPELINE_STAGES = [
@@ -64,7 +66,7 @@ const ALL_PIPELINE_STATUSES = PIPELINE_STAGES.map(s => s.key);
 // ===== Main Component =====
 const MAX_CARDS_PER_COLUMN = 30;
 
-export function OrderPipeline() {
+function OrderPipelineContent() {
   const allOrders = useLiveQuery(() => db.orders.toArray(), []) || [];
   const allCustomers = useLiveQuery(() => db.customers.toArray(), []) || [];
   const [searchTerm, setSearchTerm] = useState('');
@@ -545,6 +547,36 @@ function OrderDetailModal({ orderId, onClose }: { orderId: number; onClose: () =
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Tabbed wrapper: Order Pipeline + Delivered list (sidebar simplification).
+// Delivered view is admin-only; telecallers keep the plain pipeline.
+// =====================================================================
+export function OrderPipeline() {
+  const { isAdmin } = useAuth();
+  const [view, setView] = useState<'pipeline' | 'delivered'>('pipeline');
+  const TABS = [
+    { key: 'pipeline' as const, label: 'Pipeline' },
+    { key: 'delivered' as const, label: 'Delivered', adminOnly: true },
+  ];
+  const tabs = TABS.filter((t) => !t.adminOnly || isAdmin);
+  return (
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${view === t.key ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {view === 'delivered' ? <DeliveredCustomers /> : <OrderPipelineContent />}
     </div>
   );
 }

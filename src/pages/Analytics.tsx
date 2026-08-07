@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
@@ -8,8 +8,9 @@ import Activity from 'lucide-react/dist/esm/icons/activity'
 import Users from 'lucide-react/dist/esm/icons/users'
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { useDateFilter } from '../context/DateFilterContext';
+import { CourierAnalytics } from './CourierAnalytics';
 
-export function Analytics() {
+function AnalyticsContent() {
   const allOrders = useLiveQuery(() => db.orders.toArray()) || [];
   const allLeads = useLiveQuery(() => db.leads.toArray()) || [];
   const allCustomers = useLiveQuery(() => db.customers.toArray()) || [];
@@ -99,6 +100,33 @@ function StatBox({ title, value, subtitle, isGood, icon: Icon }: any) {
         <h3 className="text-3xl font-bold text-slate-800">{value}</h3>
         <span className="text-xs font-bold text-slate-500 mb-1">{subtitle}</span>
       </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Tabbed wrapper: Analytics + Courier Analytics (sidebar simplification).
+// =====================================================================
+export function Analytics() {
+  const [view, setView] = useState<'overview' | 'courier'>('overview');
+  const TABS = [
+    { key: 'overview' as const, label: 'Overview' },
+    { key: 'courier' as const, label: 'Courier' },
+  ];
+  return (
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${view === t.key ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {view === 'courier' ? <CourierAnalytics /> : <AnalyticsContent />}
     </div>
   );
 }

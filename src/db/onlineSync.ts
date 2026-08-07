@@ -263,17 +263,61 @@ async function applyRemoteRow(key: string, cloudRow: Record<string, any>, deferr
   }
 }
 
-// ---------- full pull (login + periodic safety net) ----------
-export async function pullAllFromCloud(): Promise<{ ok: boolean; error?: string }> {
+// ---------- incremental pull (cursor-based delta sync) ----------
+// Every 30s the client no longer downloads the WHOLE cloud. After the first
+// full sync it stores per-user cursors (server watermark `pulledAt`) and only
+// fetches rows changed since then + tombstones for cloud-side deletes. A full
+// re-sync runs every 10th pull (~5 min) as a self-healing safety net, and
+// `syncNow()` (manual refresh) always does a full pull. Login is never
+// blocked — this runs in the background; the UI reads the local Dexie cache.
+const CURSOR_PREFIX = 'crm_sync_cursors_';
+interface SyncCursors { tables: Record<string, string>; deletedAt: string; fullPulls: number; }
+
+function loadCursors(userId: string): SyncCursors | null {
+  try {
+    const raw = localStorage.getItem(CURSOR_PREFIX + userId);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+function saveCursors(userId: string, c: SyncCursors) {
+  try { localStorage.setItem(CURSOR_PREFIX + userId, JSON.stringify(c)); } catch { /* ignore */ }
+}
+
+async function pullFromCloud(userId: string, forceFull = false): Promise<{ ok: boolean; error?: string }> {
   if (!navigator.onLine) return { ok: false, error: 'offline' };
   suppressHooksDepth++;
   try {
-    const deferred: DeferredRow[] = [];
+    const cursors = loadCursors(userId);
+    const ready = cursors && ORDERED_KEYS.every((k) => typeof cursors.tables[k] === 'string');
+    const incremental = ready && !forceFull && (cursors!.fullPulls % 10 !== 9);
     const cloudNames = ORDERED_KEYS.map((k) => SYNC_TABLES[k].cloud);
-    const { rows } = await api.pullAll(cloudNames);
+    const deferred: DeferredRow[] = [];
+    let pulledAt = '';
+    const res = incremental
+      ? await api.pullAll(cloudNames, {
+          since: cursors!.tables[ORDERED_KEYS[0]],
+          deletedSince: cursors!.deletedAt || undefined,
+        })
+      : await api.pullAll(cloudNames);
+    pulledAt = res.pulledAt || new Date().toISOString();
     for (const key of ORDERED_KEYS) {
       const cfg = SYNC_TABLES[key];
-      for (const row of rows[cfg.cloud] || []) await applyRemoteRow(key, row, deferred);
+      for (const row of res.rows[cfg.cloud] || []) await applyRemoteRow(key, row, deferred);
+    }
+    // prune locally-deleted cloud rows via tombstones (incremental only)
+    if (incremental) {
+      const deleted = res.deleted || {};
+      for (const key of ORDERED_KEYS) {
+        const cfg = SYNC_TABLES[key];
+        for (const t of deleted[cfg.cloud] || []) {
+          const cloudId = Number(t.id) || 0;
+          const localId = cloudId ? await getLocalIdByCloud(key, cloudId) : undefined;
+          if (localId != null) {
+            await (db as any)[cfg.dexie].delete(localId);
+            await deleteMapByLocal(key, localId);
+          }
+        }
+      }
     }
     // retry orphaned rows (missing parents) a few times
     for (let pass = 0; pass < 3 && deferred.length > 0; pass++) {
@@ -282,6 +326,13 @@ export async function pullAllFromCloud(): Promise<{ ok: boolean; error?: string 
       deferred.length = 0;
       deferred.push(...remaining);
     }
+    const next: SyncCursors = {
+      tables: {},
+      deletedAt: pulledAt,
+      fullPulls: incremental ? (cursors!.fullPulls + 1) : 0,
+    };
+    for (const key of ORDERED_KEYS) next.tables[key] = pulledAt;
+    saveCursors(userId, next);
     setSyncStatus({ lastSyncAt: new Date().toISOString(), error: undefined });
     return { ok: true };
   } catch (err: any) {
@@ -290,6 +341,25 @@ export async function pullAllFromCloud(): Promise<{ ok: boolean; error?: string 
   } finally {
     suppressHooksDepth--;
   }
+}
+
+// Backward-compatible alias used by manual/manual-ish callers.
+export async function pullAllFromCloud(): Promise<{ ok: boolean; error?: string }> {
+  return pullFromCloud(activeUserId(), true);
+}
+
+function activeUserId(): string {
+  try {
+    const raw = localStorage.getItem('crm_auth_token') || '';
+    if (raw) {
+      const p = raw.split('.')[1];
+      if (p) {
+        const d = JSON.parse(atob(p.replace(/-/g, '+').replace(/_/g, '/')));
+        if (d?.sub) return String(d.sub);
+      }
+    }
+  } catch { /* fall through */ }
+  return 'default';
 }
 
 // ---------- one-time export: push existing local data when cloud is empty ----------
@@ -374,7 +444,8 @@ export async function startOnlineSync(): Promise<void> {
   setSyncStatus({ syncing: true });
   try {
     await exportLocalIfCloudEmpty();
-    await pullAllFromCloud();
+    // First sync: full (no cursors yet) or delta (fast app re-open).
+    await pullFromCloud(activeUserId(), false);
     await processIntakeLeads();
     await processQueue();
   } catch (e) {
@@ -387,7 +458,8 @@ export async function startOnlineSync(): Promise<void> {
   // does not exist on D1. Cloud changes arrive on the next tick.
   intervalId = setInterval(async () => {
     await processQueue();
-    await pullAllFromCloud();
+    // Delta pull — only rows changed since the last watermark (+ tombstones).
+    await pullFromCloud(activeUserId(), false);
     await processIntakeLeads();
   }, 30000);
 }
@@ -401,7 +473,8 @@ export async function syncNow(): Promise<{ online: boolean; pending: number; err
   setSyncStatus({ syncing: true });
   try {
     await processQueue();
-    await pullAllFromCloud();
+    // Manual sync = full pull (self-healing, heals any clock-skew drift).
+    await pullFromCloud(activeUserId(), true);
     await processIntakeLeads();
   } catch (e: any) {
     setSyncStatus({ error: String(e?.message || e) });

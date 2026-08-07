@@ -15,11 +15,6 @@ import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
 import PhoneCall from 'lucide-react/dist/esm/icons/phone-call'
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days'
 import TrendingUp from 'lucide-react/dist/esm/icons/trending-up'
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
-} from 'recharts';
-import { format, subDays, startOfDay, endOfDay } from 'date-fns';
 import { isPipelineActive, isRevenueEligible, isFakeStatus, isRTOStatus } from '../db/lifecycle';
 import { safeMoney, safeFilter } from '../lib/safe';
 import { useDateFilter } from '../context/DateFilterContext';
@@ -175,19 +170,6 @@ export function Dashboard() {
     const fakeCustomers = fakeLeads.length;
     const interestedLeads = safeFilter(activeLeads, l => l.status === 'Interested').length;
 
-    const revenueData = Array.from({ length: 7 }).map((_, idx) => {
-      const day = subDays(new Date(), 6 - idx);
-      const dayStart = startOfDay(day).getTime();
-      const dayEnd = endOfDay(day).getTime();
-      const dailyRevenue = orders.filter(o => {
-        try {
-          const t = new Date(o.updatedAt || o.orderDate).getTime();
-          return t >= dayStart && t <= dayEnd && o.status === 'Delivered';
-        } catch { return false; }
-      }).reduce((s, o) => s + safeMoney(o.codAmount), 0);
-      return { name: format(day, 'EEE'), amount: dailyRevenue };
-    });
-
     const pipelineAlerts: { icon: any; color: string; text: string }[] = [];
     if (packingPending > 0) pipelineAlerts.push({ icon: Box, color: 'text-orange-500', text: `${packingPending} Orders Waiting for Packing` });
     if (readyToShip > 0) pipelineAlerts.push({ icon: Send, color: 'text-blue-500', text: `${readyToShip} Orders Ready To Ship` });
@@ -195,13 +177,6 @@ export function Dashboard() {
     if (todayDelivered > 0) pipelineAlerts.push({ icon: Check, color: 'text-emerald-500', text: `${todayDelivered} Delivered Today 🎉` });
     if (adminTc.followupsDue > 0) pipelineAlerts.push({ icon: CalendarDays, color: 'text-amber-500', text: `${adminTc.followupsDue} Follow-ups Due` });
     if (adminTc.unassigned > 0) pipelineAlerts.push({ icon: Users, color: 'text-blue-500', text: `${adminTc.unassigned} New Leads Unassigned` });
-
-    const deliveryData = [
-      { name: 'Delivered', value: deliveredOrders || 1, color: '#10b981' },
-      { name: 'RTO', value: rtoOrders || 0, color: '#ef4444' },
-      { name: 'In Transit', value: (shippedOrders + inTransit + outForDelivery) || 0, color: '#3b82f6' },
-      { name: 'Pending', value: (ordersBooked + packingPending + packedOrders + readyToShip) || 0, color: '#f59e0b' },
-    ];
 
     return {
       todayLeads,
@@ -220,16 +195,14 @@ export function Dashboard() {
       revenue,
       fakeCustomers,
       interestedLeads,
-      revenueData,
       pipelineAlerts,
-      deliveryData,
     };
   }, [leads, orders, todayNDRs, adminTc.followupsDue, adminTc.unassigned]);
   const {
     todayLeads, ordersBooked, packingPending, readyToShip, shippedOrders,
     inTransit, outForDelivery, deliveredOrders, rtoOrders, cancelledOrders,
     todayDelivered, todayRTO, revenue, fakeCustomers, interestedLeads,
-    revenueData, pipelineAlerts, deliveryData,
+    pipelineAlerts,
   } = dashboardData;
 
   // ============ TELECALLER VIEW ============
@@ -395,35 +368,6 @@ export function Dashboard() {
         <StatCard title="Active NDR" value={todayNDRs.length} icon={AlertTriangle} colorClass="bg-red-100 text-red-600" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">Revenue Chart</h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v}`} />
-                <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px' }} />
-                <Area type="monotone" dataKey="amount" stroke="#3b82f6" fill="#eff6ff" strokeWidth={3} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-          <h3 className="text-lg font-bold text-slate-800 mb-4">Delivery Success vs RTO</h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={deliveryData} innerRadius={80} outerRadius={100} paddingAngle={5} dataKey="value">
-                  {deliveryData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} />))}
-                </Pie>
-                <Tooltip /><Legend verticalAlign="bottom" height={36}/>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

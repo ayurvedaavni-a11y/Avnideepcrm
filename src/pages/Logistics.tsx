@@ -27,6 +27,8 @@ import { syncOrderToCentralStatus } from '../db/workflow';
 import { toast } from 'react-hot-toast';
 // exceljs imported dynamically in handleExport
 import { useDateFilter } from '../context/DateFilterContext';
+import { NDRPanel } from './NDRPanel';
+import { UndeliveredCustomers } from './UndeliveredCustomers';
 import { VirtualTable, type VirtualTableColumn } from '../components/VirtualTable';
 
 // ===== Status Tabs Configuration =====
@@ -103,7 +105,7 @@ interface ShipmentRowData {
   customer?: any;
 }
 
-export function Logistics() {
+function LogisticsContent() {
   const orders = useLiveQuery(() => db.orders.toArray(), []) || [];
   const customers = useLiveQuery(() => db.customers.toArray(), []) || [];
   const [searchTerm, setSearchTerm] = useState('');
@@ -680,3 +682,31 @@ function SummaryCard({ label, value, icon: Icon, color }: { label: string; value
 }
 
 // ShipmentRow removed — now handled inline in VirtualTable columns
+
+// =====================================================================
+// Tabbed wrapper: Logistics (shipments) + NDR + Undelivered cases.
+// =====================================================================
+export function Logistics() {
+  const [view, setView] = useState<'shipments' | 'ndr' | 'undelivered'>('shipments');
+  const TABS = [
+    { key: 'shipments' as const, label: 'Shipments' },
+    { key: 'ndr' as const, label: 'NDR Cases' },
+    { key: 'undelivered' as const, label: 'Undelivered' },
+  ];
+  return (
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${view === t.key ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {view === 'ndr' ? <NDRPanel /> : view === 'undelivered' ? <UndeliveredCustomers /> : <LogisticsContent />}
+    </div>
+  );
+}

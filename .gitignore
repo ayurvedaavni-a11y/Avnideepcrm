@@ -36,3 +36,14 @@ worker/package-lock.json
 
 tmp/
 scripts/.tmp-*.mjs
+
+# Local QA artifacts (never commit)
+dist-local-test/
+.env.local-test
+scripts/assign-test.mjs
+scripts/lead-api-audit.mjs
+scripts/stress-audit.mjs
+scripts/upload-debug.mjs
+scripts/upload-helper.mjs
+scripts/upload-helper2.mjs
+scripts/upload-helper3.mjs

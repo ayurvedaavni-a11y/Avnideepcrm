@@ -13,9 +13,11 @@ import LogOut from 'lucide-react/dist/esm/icons/log-out'
 import UserSquare2 from 'lucide-react/dist/esm/icons/user-square-2'
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { InvoiceSettings } from './InvoiceSettings';
+import { WhatsApp } from './WhatsApp';
 import { changePin } from '../db/auth';
 
-export function Settings() {
+function SettingsContent() {
   const { profile, isAdmin, logout } = useAuth();
   const [curPin, setCurPin] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -348,6 +350,34 @@ export function Settings() {
         </div>
       </div>
 
+    </div>
+  );
+}
+
+// =====================================================================
+// Tabbed wrapper: Settings (general) + Invoice Settings + WhatsApp Auto.
+// =====================================================================
+export function Settings() {
+  const [view, setView] = useState<'general' | 'invoice' | 'whatsapp'>('general');
+  const TABS = [
+    { key: 'general' as const, label: 'General' },
+    { key: 'invoice' as const, label: 'Invoice' },
+    { key: 'whatsapp' as const, label: 'WhatsApp Auto' },
+  ];
+  return (
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${view === t.key ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {view === 'invoice' ? <InvoiceSettings /> : view === 'whatsapp' ? <WhatsApp /> : <SettingsContent />}
     </div>
   );
 }

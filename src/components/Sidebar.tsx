@@ -5,18 +5,13 @@ import Users from 'lucide-react/dist/esm/icons/users'
 import PhoneCall from 'lucide-react/dist/esm/icons/phone-call'
 import ShoppingCart from 'lucide-react/dist/esm/icons/shopping-cart'
 import Truck from 'lucide-react/dist/esm/icons/truck'
-import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle'
 import UserSquare2 from 'lucide-react/dist/esm/icons/user-square-2'
-import MessageSquare from 'lucide-react/dist/esm/icons/message-square'
 import BarChart3 from 'lucide-react/dist/esm/icons/bar-chart-3'
 import Settings from 'lucide-react/dist/esm/icons/settings'
-import CheckCircle2 from 'lucide-react/dist/esm/icons/check-circle-2'
-import XCircle from 'lucide-react/dist/esm/icons/x-circle'
 import UploadCloud from 'lucide-react/dist/esm/icons/upload-cloud'
 import FileText from 'lucide-react/dist/esm/icons/file-text'
 import Package from 'lucide-react/dist/esm/icons/package'
 import Wallet from 'lucide-react/dist/esm/icons/wallet'
-import Receipt from 'lucide-react/dist/esm/icons/receipt'
 import Shield from 'lucide-react/dist/esm/icons/shield'
 import Database from 'lucide-react/dist/esm/icons/database'
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
@@ -35,29 +30,50 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
-const navItems: NavItem[] = [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'Lead Center', path: '/leads', icon: Users },
-  { name: 'SpaceL Leads', path: '/followups', icon: PhoneCall },
-  { name: 'Order Pipeline', path: '/orders', icon: ShoppingCart },
-  { name: 'Logistics', path: '/logistics', icon: Truck, adminOnly: true },
-  { name: 'NDR Panel', path: '/ndr', icon: AlertTriangle, adminOnly: true },
-  { name: 'Delivered Order list', path: '/delivered-list', icon: CheckCircle2, adminOnly: true },
-  { name: 'Undelivered Cases', path: '/undelivered-list', icon: XCircle, adminOnly: true },
-  { name: 'All Customers', path: '/customers', icon: UserSquare2, adminOnly: true },
-  { name: 'Invoices', path: '/invoices', icon: FileText, adminOnly: true },
-  { name: 'Payments', path: '/payments', icon: Wallet, adminOnly: true },
-  { name: 'Inventory', path: '/inventory', icon: Package, adminOnly: true },
-  { name: 'Invoice Settings', path: '/invoice-settings', icon: Receipt, adminOnly: true },
-  { name: 'Backup Center', path: '/backup', icon: Shield, adminOnly: true },
-  { name: 'Bulk Import', path: '/bulk-import', icon: UploadCloud, adminOnly: true },
-  { name: 'WhatsApp Auto', path: '/whatsapp', icon: MessageSquare, adminOnly: true },
-  { name: 'Analytics', path: '/analytics', icon: BarChart3, adminOnly: true },
-  { name: 'Telecaller Performance', path: '/performance', icon: BarChart3, adminOnly: true },
-  { name: 'Courier Analytics', path: '/courier-analytics', icon: Truck, adminOnly: true },
-  { name: 'GST Reports', path: '/gst-reports', icon: FileText, adminOnly: true },
-  { name: 'DB Health', path: '/db-health', icon: Database, adminOnly: true },
-  { name: 'Settings', path: '/settings', icon: Settings, adminOnly: true },
+// Sidebar is organised into 4 groups (Daily / Business / Reports / System).
+// NDR, Delivered, Undelivered, Courier Analytics, Invoice Settings and
+// WhatsApp Auto remain fully functional — they moved into tabs on their
+// parent pages (routes unchanged, deep links still work).
+interface NavGroup { title: string; items: NavItem[]; }
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    title: 'Daily Operations',
+    items: [
+      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+      { name: 'Lead Center', path: '/leads', icon: Users },
+      { name: 'Follow-ups', path: '/followups', icon: PhoneCall },
+      { name: 'Orders', path: '/orders', icon: ShoppingCart },
+      { name: 'All Customers', path: '/customers', icon: UserSquare2, adminOnly: true },
+    ],
+  },
+  {
+    title: 'Business',
+    items: [
+      { name: 'Logistics', path: '/logistics', icon: Truck, adminOnly: true },
+      { name: 'Inventory', path: '/inventory', icon: Package, adminOnly: true },
+      { name: 'Payments', path: '/payments', icon: Wallet, adminOnly: true },
+      { name: 'Invoices', path: '/invoices', icon: FileText, adminOnly: true },
+      { name: 'Bulk Import', path: '/bulk-import', icon: UploadCloud, adminOnly: true },
+    ],
+  },
+  {
+    title: 'Reports',
+    items: [
+      { name: 'Analytics', path: '/analytics', icon: BarChart3, adminOnly: true },
+      { name: 'Telecaller Performance', path: '/performance', icon: BarChart3, adminOnly: true },
+      { name: 'GST Reports', path: '/gst-reports', icon: FileText, adminOnly: true },
+    ],
+  },
+  {
+    title: 'System',
+    items: [
+      { name: 'Team Management', path: '/team', icon: UserPlus, adminOnly: true },
+      { name: 'Settings', path: '/settings', icon: Settings, adminOnly: true },
+      { name: 'Backup Center', path: '/backup', icon: Shield, adminOnly: true },
+      { name: 'DB Health', path: '/db-health', icon: Database, adminOnly: true },
+    ],
+  },
 ];
 
 export const Sidebar = memo(function Sidebar() {
@@ -77,9 +93,9 @@ export const Sidebar = memo(function Sidebar() {
     };
   }, []);
 
-  const visibleItems = navItems.filter((item) => !item.adminOnly || isAdmin);
-  const teamItem: NavItem = { name: 'Team Management', path: '/team', icon: UserPlus, adminOnly: true };
-  if (isAdmin) visibleItems.push(teamItem);
+  const visibleGroups = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((item) => !item.adminOnly || isAdmin) }))
+    .filter((g) => g.items.length > 0);
 
   return (
     <>
@@ -121,23 +137,32 @@ export const Sidebar = memo(function Sidebar() {
 
         <nav className="flex-1 overflow-y-auto py-4">
           <ul className="space-y-1 px-3">
-            {visibleItems.map((item) => (
-              <li key={item.path}>
-                <NavLink
-                  to={item.path}
-                  onClick={() => setOpen(false)}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200",
-                      isActive
-                        ? "bg-blue-600 text-white"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                    )
-                  }
-                >
-                  <item.icon size={20} />
-                  <span className="font-medium">{item.name}</span>
-                </NavLink>
+            {visibleGroups.map((group) => (
+              <li key={group.title} className="mb-3">
+                <p className="px-3 pt-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  {group.title}
+                </p>
+                <ul className="space-y-0.5">
+                  {group.items.map((item) => (
+                    <li key={item.path}>
+                      <NavLink
+                        to={item.path}
+                        onClick={() => setOpen(false)}
+                        className={({ isActive }) =>
+                          cn(
+                            "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-200",
+                            isActive
+                              ? "bg-blue-600 text-white"
+                              : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                          )
+                        }
+                      >
+                        <item.icon size={20} />
+                        <span className="font-medium">{item.name}</span>
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>
