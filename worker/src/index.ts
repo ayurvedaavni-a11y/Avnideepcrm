@@ -411,19 +411,39 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
   for (const b of def.booleans || []) {
     if (data[b] !== undefined) data[b] = data[b] ? 1 : 0;
   }
-  // SERVER-SIDE OWNERSHIP CHECK: a telecaller may only UPDATE leads already
-  // assigned to them, and any NEW lead they create is assigned to themselves.
+  // SERVER-SIDE OWNERSHIP + FIELD RESTRICTIONS for telecallers:
+  //  - may only UPDATE leads already assigned to them (403 otherwise),
+  //  - any NEW lead they create is auto-assigned to themselves,
+  //  - may NEVER change identity/ownership fields (mobile, name, source,
+  //    expected_amount, assigned_agent/assigned_to) — address, notes,
+  //    follow-up and status are the only things they can edit.
   if (user && user.role !== 'admin' && table === 'crm_leads') {
     if (hasId) {
       const existing = await env.DB.prepare('SELECT assigned_to, assigned_agent FROM crm_leads WHERE id = ?')
         .bind(data.id)
         .first();
-      if (existing && existing.assigned_to !== user.id && existing.assigned_agent !== user.full_name) {
+      // Ownership is decided by assigned_to (id) FIRST so two telecallers with
+      // the same full_name can never touch each other's leads; the name is only
+      // a fallback for legacy rows whose assigned_to was never populated.
+      const ownerId = existing ? String(existing.assigned_to ?? '') : '';
+      const ownerName = existing ? String(existing.assigned_agent ?? '') : '';
+      const nameFallback = (!ownerId || ownerId === '0') && ownerName === user.full_name;
+      if (existing && ownerId !== String(user.id) && !nameFallback) {
         return json({ error: 'Forbidden — ye lead kisi aur telecaller ko assigned hai' }, 403);
+      }
+      for (const p of ['mobile', 'customer_id', 'customer_name', 'source', 'expected_amount', 'assigned_agent', 'assigned_to']) {
+        delete data[p];
       }
     } else {
       data.assigned_to = user.id;
       data.assigned_agent = user.full_name;
+    }
+  }
+  // Telecallers may edit customer ADDRESS/notes fields but never identity or
+  // financial/counter fields (mobile, name, totals, risk, status counters).
+  if (user && user.role !== 'admin' && table === 'crm_customers') {
+    for (const p of ['mobile', 'name', 'alternate_number', 'total_orders', 'delivered', 'rto', 'cancelled', 'fake_count', 'total_spend', 'last_order_date', 'risk_level', 'current_status']) {
+      delete data[p];
     }
   }
   if (Object.keys(data).length === 0) return json({ error: 'No writable columns' }, 400);
@@ -484,6 +504,9 @@ async function handleDelete(env: Env, request: Request, user: Record<string, any
   // DATA SAFETY: deletes are ADMIN-ONLY. Telecallers can never permanently
   // delete any row — lead history, call logs, timeline etc. stay forever, and
   // no telecaller can silently wipe cloud data.
+  if (user && user.role !== 'admin') {
+    return json({ error: 'Forbidden — admin only' }, 403);
+  }
   await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(body.id).run();
   return json({ ok: true });
 }
@@ -501,8 +524,10 @@ async function handlePull(env: Env, _request: Request, user: Record<string, any>
     // themselves. (Previously the whole table was returned and the UI hid the
     // rest — any telecaller could pull everyone's lead data via the API.)
     if (name === 'crm_leads' && user && user.role !== 'admin') {
+      // Isolation by assigned_to (id) first; name only for legacy rows where
+      // assigned_to is missing/0. Prevents same-name telecaller cross-leaks.
       const res = await env.DB.prepare(
-        'SELECT * FROM crm_leads WHERE assigned_to = ? OR assigned_agent = ? ORDER BY id ASC'
+        "SELECT * FROM crm_leads WHERE assigned_to = ? OR ((assigned_to IS NULL OR assigned_to = '' OR assigned_to = '0') AND assigned_agent = ?) ORDER BY id ASC"
       )
         .bind(user.id, user.full_name)
         .all();
