@@ -73,7 +73,13 @@ export function LeadCenter() {
   const [filterProduct, setFilterProduct] = useState('');
 
   useEffect(() => {
-    if (isAdmin) listTeamMembers().then(setTelecallers).catch(() => {});
+    // TASK 6: dropdown (assign / bulk-assign / filter) shows ONLY active
+    // telecallers — deleted, inactive/blocked users and admins never appear.
+    if (isAdmin) {
+      listTeamMembers()
+        .then(list => setTelecallers(list.filter(t => t.is_active && t.role === 'telecaller')))
+        .catch(() => {});
+    }
   }, [isAdmin]);
 
   // TELECALLER ISOLATION: non-admin users see ONLY their own assigned leads

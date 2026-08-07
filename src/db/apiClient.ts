@@ -98,8 +98,13 @@ export const api = {
       method: 'PATCH',
       body: changes,
     }),
-  deleteMember: (id: string) =>
-    request<{ ok: boolean }>(`/api/auth/member/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deleteMember: (id: string, force = false) =>
+    request<{ ok: boolean; unassignedLeads?: number }>(`/api/auth/member/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      body: { force },
+    }),
+  repairAssignments: () =>
+    request<{ ok: boolean; repaired: number }>('/api/admin/repair-assignments', { method: 'POST' }),
   changePin: (currentPin: string, newPin: string) =>
     request<{ ok: boolean }>('/api/auth/change-pin', {
       method: 'POST',

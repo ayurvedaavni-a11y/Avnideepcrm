@@ -150,11 +150,11 @@ export async function setMemberActive(id: string, isActive: boolean) {
   }
 }
 
-export async function deleteMember(id: string) {
+export async function deleteMember(id: string, force = false) {
   try {
-    await api.deleteMember(id);
+    const res = await api.deleteMember(id, force);
     clearTeamCache();
-    return { ok: true };
+    return { ok: true, unassignedLeads: res?.unassignedLeads };
   } catch (e: any) {
     return { ok: false, error: friendlyAuthError(e) };
   }

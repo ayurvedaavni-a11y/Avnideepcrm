@@ -9,6 +9,7 @@ import { checkOverdueSpaceLFollowups } from './db/workflow';
 import { DateFilterProvider } from './context/DateFilterContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { startOnlineSync, stopOnlineSync } from './db/onlineSync';
+import { api } from './db/apiClient';
 import { runNotificationChecks } from './db/notificationEngine';
 import { Login } from './pages/Login';
 import { PwaUpdater } from './components/PwaUpdater';
@@ -133,6 +134,27 @@ function AppContent() {
     })();
     return () => { mounted = false; stopOnlineSync(); };
   }, [canEnter, user, offlineMode]);
+  // TASK 7 + 9 — STARTUP SELF-HEALING: silently repair any orphan/invalid lead
+  // assignment in the background. Runs once per app start (admin only) and is
+  // fire-and-forget — the user never sees it. The worker bumps updated_at on
+  // every repaired lead so all clients receive the fix via incremental sync.
+  useEffect(() => {
+    if (!profile || profile.role !== 'admin') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.repairAssignments();
+        if (!cancelled && res && res.repaired > 0) {
+          console.log(`[SelfHeal] repaired ${res.repaired} orphan assignment(s)`);
+        }
+      } catch (e) {
+        console.warn('[SelfHeal] repair skipped (offline/error):', e);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
   // Notification engine: overdue follow-ups, pending leads, inactive telecallers (every 5 min)
   useEffect(() => {
     const check = async () => {

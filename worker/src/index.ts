@@ -340,17 +340,28 @@ async function handleMemberPatch(env: Env, request: Request, user: Record<string
   values.push(targetId);
   const res = await env.DB.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).bind(...values).run();
   if (Number((res.meta as any)?.changes ?? 0) === 0) return json({ error: 'Member not found' }, 404);
+  // DISABLE = UNASSIGN: a deactivated telecaller's leads return to the pool so
+  // they never sit invisible/untouchable while the account is blocked. Bumping
+  // updated_at lets every client pick up the unassignment via delta sync.
+  if (body.is_active === false) {
+    await env.DB.prepare(
+      "UPDATE crm_leads SET assigned_to = NULL, assigned_agent = NULL, updated_at = ? WHERE assigned_to = ?"
+    )
+      .bind(new Date().toISOString(), String(targetId))
+      .run();
+  }
   return json({ ok: true });
 }
 
-async function handleMemberDelete(env: Env, _request: Request, user: Record<string, any> | null, id: string): Promise<Response> {
+async function handleMemberDelete(env: Env, request: Request, user: Record<string, any> | null, id: string): Promise<Response> {
   const denied = requireAdmin(user);
   if (denied) return denied;
   const targetId = Number(id);
   if (String(id) === String(user!.id)) return json({ error: 'Apna account delete nahi kar sakte' }, 400);
   // LOCKOUT GUARD: never delete the last active admin.
   const target = await env.DB.prepare('SELECT role, is_active FROM users WHERE id = ?').bind(targetId).first();
-  if (target && (target as any).role === 'admin' && (target as any).is_active === 1) {
+  if (!target) return json({ error: 'Member not found' }, 404);
+  if ((target as any).role === 'admin' && (target as any).is_active === 1) {
     const admins = await env.DB.prepare(
       "SELECT COUNT(*) AS c FROM users WHERE role = 'admin' AND is_active = 1 AND id <> ?"
     )
@@ -360,9 +371,33 @@ async function handleMemberDelete(env: Env, _request: Request, user: Record<stri
       return json({ error: 'Last admin ko delete nahi kar sakte' }, 400);
     }
   }
+  // DELETE PROTECTION: a telecaller with assigned leads cannot be deleted unless
+  // force=true. The UI warns first; this 409 is the server-side guarantee so no
+  // client (or direct API call) can ever orphan leads.
+  const leadCount = await env.DB.prepare('SELECT COUNT(*) AS c FROM crm_leads WHERE assigned_to = ?')
+    .bind(String(targetId))
+    .first();
+  const count = Number((leadCount as any)?.c ?? 0);
+  const body = await readJson(request);
+  const force = body.force === true;
+  if (count > 0 && !force) {
+    return json(
+      { error: `Is telecaller ke paas ${count} assigned lead hain. Pehle saare leads transfer/unassign karein ya force delete karein.`, assignedLeads: count },
+      409
+    );
+  }
+  if (count > 0) {
+    // AUTO-REASSIGN (force delete): leads return to the unassigned pool and the
+    // bumped updated_at propagates the change to every client via delta sync.
+    await env.DB.prepare(
+      "UPDATE crm_leads SET assigned_to = NULL, assigned_agent = NULL, updated_at = ? WHERE assigned_to = ?"
+    )
+      .bind(new Date().toISOString(), String(targetId))
+      .run();
+  }
   const res = await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(targetId).run();
   if (Number((res.meta as any)?.changes ?? 0) === 0) return json({ error: 'Member not found' }, 404);
-  return json({ ok: true });
+  return json({ ok: true, unassignedLeads: count });
 }
 
 async function handleChangePin(env: Env, request: Request, user: Record<string, any> | null): Promise<Response> {
@@ -455,6 +490,22 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
       data.assigned_to = user.id;
       data.assigned_agent = user.full_name;
     }
+  }
+  // FK VALIDATION (admin path): an assigned_to value pushed for a lead must point
+  // to an existing, ACTIVE, TELECALLER user — otherwise the row is rejected with
+  // 400 so an invalid assignment can never be written to D1. Telecallers never
+  // reach this branch with a foreign id: their ownership fields were stripped
+  // above and any NEW lead they create is auto-assigned to their own (already
+  // validated) user id. The stored value is canonicalized to the user-id string
+  // format so downstream joins (CAST(u.id AS TEXT) = assigned_to) always match.
+  if (user && user.role === 'admin' && table === 'crm_leads' && data.assigned_to !== undefined && data.assigned_to !== null && data.assigned_to !== '' && data.assigned_to !== '0') {
+    const at = String(data.assigned_to);
+    const member = await env.DB.prepare("SELECT id, full_name FROM users WHERE id = ? AND is_active = 1 AND role = 'telecaller'")
+      .bind(Number(at) || at)
+      .first();
+    if (!member) return json({ error: 'Invalid assignee — telecaller exists/active nahi hai' }, 400);
+    data.assigned_to = String((member as any).id);
+    if (!data.assigned_agent) data.assigned_agent = String((member as any).full_name || 'Telecaller');
   }
   // Telecallers may edit customer ADDRESS/notes fields but never identity or
   // financial/counter fields (mobile, name, totals, risk, status counters).
@@ -680,6 +731,39 @@ async function handleIntake(env: Env, request: Request): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------
+// startup self-healing (TASK 7 + 9) — admin-only repair sweep
+// ---------------------------------------------------------------------
+// Called silently on every app startup (and by the DB Health page). Fixes any
+// lead whose assigned_to does NOT point at an existing, active, telecaller user:
+//   assigned_to = NULL, assigned_agent = NULL, updated_at = NOW()
+// The updated_at bump is the critical part — it guarantees every client picks
+// up the repair through the normal incremental (delta) sync, so a stale
+// assignment can never linger invisibly on another device.
+async function handleRepairAssignments(env: Env, _request: Request, user: Record<string, any> | null): Promise<Response> {
+  const denied = requireAdmin(user);
+  if (denied) return denied;
+  const now = new Date().toISOString();
+  // Single sweep: sentinel ('', '0') values count as unassigned, and any
+  // non-empty assigned_to that does not reference an existing, ACTIVE,
+  // telecaller user is an orphan — both are repaired in one statement so the
+  // returned count is accurate.
+  const res = await env.DB.prepare(
+    `UPDATE crm_leads
+     SET assigned_to = NULL, assigned_agent = NULL, updated_at = ?
+     WHERE assigned_to = '' OR assigned_to = '0'
+        OR (assigned_to IS NOT NULL AND NOT EXISTS (
+              SELECT 1 FROM users u
+              WHERE CAST(u.id AS TEXT) = crm_leads.assigned_to
+                AND u.is_active = 1
+                AND u.role = 'telecaller'
+            ))`
+  )
+    .bind(now)
+    .run();
+  return json({ ok: true, repaired: Number((res.meta as any)?.changes ?? 0) });
+}
+
+// ---------------------------------------------------------------------
 // lead assignment (admin-only, server-side — survives sync + scales to
 // 100k+ leads, and generates an in-app notification for the assignee)
 // ---------------------------------------------------------------------
@@ -699,10 +783,12 @@ async function handleLeadsAssign(env: Env, request: Request, user: Record<string
   // assignee must be an existing active member.
   let name = '';
   if (assignToId && assignToId !== '0') {
-    const member = await env.DB.prepare('SELECT id, full_name FROM users WHERE id = ? AND is_active = 1')
+    // FK VALIDATION: assignee must exist, be ACTIVE and be a TELECALLER. Admins,
+    // deleted and blocked users can never receive an assignment (HTTP 400).
+    const member = await env.DB.prepare("SELECT id, full_name FROM users WHERE id = ? AND is_active = 1 AND role = 'telecaller'")
       .bind(Number(assignToId) || assignToId)
       .first();
-    if (!member) return json({ error: 'Assignee not found / inactive' }, 404);
+    if (!member) return json({ error: 'Assignee not found / inactive / not a telecaller' }, 400);
     name = rawName || String((member as any).full_name || 'Telecaller');
   }
 
@@ -787,6 +873,9 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
 
       // ---- lead assignment ----
       if (path === '/api/leads/assign' && request.method === 'POST') return handleLeadsAssign(env, request, user);
+
+      // ---- self-healing repair (admin) ----
+      if (path === '/api/admin/repair-assignments' && request.method === 'POST') return handleRepairAssignments(env, request, user);
 
       // ---- intake ----
       if (path === '/api/intake' && request.method === 'POST') return handleIntake(env, request);

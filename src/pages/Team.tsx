@@ -27,6 +27,10 @@ export function Team() {
   const [pinResetMember, setPinResetMember] = useState<TeamProfile | null>(null);
   const [newPin, setNewPin] = useState('');
   const [pinBusy, setPinBusy] = useState(false);
+  // Delete-protection modal: telecaller with assigned leads can only be deleted
+  // via an explicit "transfer & delete" (force) confirmation.
+  const [deleteTarget, setDeleteTarget] = useState<TeamProfile | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -81,30 +85,35 @@ export function Team() {
     }
   };
 
-  const handleDelete = async (m: TeamProfile) => {
-
+  // TASK 1 — DELETE PROTECTION: a telecaller with assigned leads must never be
+  // silently deleted. If they have leads, open the warning modal first (the
+  // server also enforces this — non-force delete of a member with leads → 409).
+  const handleDelete = (m: TeamProfile) => {
     if (m.id === profile?.id) return;
-
-    if (!window.confirm(`${m.full_name} (${m.mobile}) ko DELETE karna hai? Ye member turant logout ho jayega aur login nahi kar payega.`)) return;
-
-    setBusyId(m.id);
-
-    try {
-
-      const res = await deleteMember(m.id);
-
-      if (!res.ok) toast.error(res.error || 'Delete fail hua');
-
-      else toast.success(`${m.full_name} delete ho gaya`);
-
-      await load();
-
-    } finally {
-
-      setBusyId(null);
-
+    const leads = Number((m as any).lead_count ?? 0);
+    if (leads > 0) {
+      setDeleteTarget(m);
+      return;
     }
+    if (!window.confirm(`${m.full_name} (${m.mobile}) ko DELETE karna hai? Ye member turant logout ho jayega aur login nahi kar payega.`)) return;
+    void doDelete(m, false);
+  };
 
+  const doDelete = async (m: TeamProfile, force: boolean) => {
+    setBusyId(m.id);
+    try {
+      const res = await deleteMember(m.id, force);
+      if (!res.ok) {
+        toast.error(res.error || 'Delete fail hua');
+        return; // keep the protection modal open so the admin can retry
+      }
+      toast.success(force ? `${m.full_name} delete ho gaya — uski leads pool mein wapas aa gayi hain` : `${m.full_name} delete ho gaya`);
+      setDeleteTarget(null);
+      await load();
+    } finally {
+      setBusyId(null);
+      setDeleteBusy(false);
+    }
   };
 
 
@@ -277,6 +286,45 @@ export function Team() {
           </div>
         )}
       </div>
+
+      {/* Delete-protection modal — telecaller has assigned leads */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-red-100 flex justify-between items-center bg-red-50 rounded-t-2xl">
+              <h2 className="text-lg font-bold text-red-700 flex items-center gap-2">
+                <Trash2 size={18} /> Delete blocked
+              </h2>
+              <button onClick={() => setDeleteTarget(null)} className="p-1 hover:bg-red-100 rounded-full" aria-label="Close">
+                <X size={20} className="text-red-400" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-700">
+                <span className="font-bold">{deleteTarget.full_name}</span> ({deleteTarget.mobile || '—'}) ke paas{' '}
+                <span className="font-black text-red-600">{(deleteTarget as any).lead_count ?? 0} assigned leads</span> hain.
+              </p>
+              <p className="text-sm text-slate-600 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                Pehle saare leads transfer ya unassign karein, phir delete karein.
+              </p>
+              <p className="text-xs text-slate-500">
+                Ya phir <span className="font-bold">"Transfer &amp; Delete"</span> karein — uski saari leads automatically
+                unassigned ho jayengi (pool mein wapas) aur phir account delete hoga. Ye action cancel nahi ho sakta.
+              </p>
+            </div>
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+              <button onClick={() => setDeleteTarget(null)} disabled={deleteBusy}
+                className="px-5 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-200 transition disabled:opacity-50">
+                Cancel
+              </button>
+              <button onClick={() => { setDeleteBusy(true); void doDelete(deleteTarget, true); }} disabled={deleteBusy}
+                className="px-5 py-2 rounded-lg font-bold text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-60 flex items-center gap-2">
+                <Trash2 size={15} /> {deleteBusy ? 'Deleting…' : 'Transfer & Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Change PIN modal */}
       {pinResetMember && (

@@ -112,13 +112,16 @@ export function Dashboard() {
   // ADMIN TELECALLER OVERVIEW DATA
   // ===================================================================
   const adminTc = useMemo(() => {
-    const unassigned = allLeads.filter(l => l.status === 'New Lead' && !l.assignedAgent).length;
-    const assignedCount = allLeads.filter(l => !!l.assignedAgent).length;
+    // TASK 4: Assigned = assigned_to IS NOT NULL (local assignedTo). Deleted /
+    // inactive telecaller leads are never counted — the worker auto-unassigns
+    // on delete/disable and the startup repair guarantees no orphan refs.
+    const unassigned = allLeads.filter(l => l.status === 'New Lead' && !l.assignedTo).length;
+    const assignedCount = allLeads.filter(l => !!l.assignedTo).length;
     const todayCalls = allCallLogs.filter(c => new Date(c.createdAt).toDateString() === todayStr).length;
     const todayConfirmed = allCallLogs.filter(c => new Date(c.createdAt).toDateString() === todayStr && (c.status === 'Order Confirmed' || c.status === 'Order Booked')).length;
     const todayCancelled = allCallLogs.filter(c => new Date(c.createdAt).toDateString() === todayStr && CANCELLED_OUTCOMES.includes(c.status)).length;
     const followupsDue = allLeads.filter(l => FOLLOWUP_STATUSES.includes(l.status) && (!l.followupDate || l.followupDate <= todayISO)).length;
-    const assignedPool = allLeads.filter(l => !!l.assignedAgent);
+    const assignedPool = allLeads.filter(l => !!l.assignedTo);
     const convertedTotal = assignedPool.filter(l => isConverted(l.status)).length;
     const conversionRate = assignedPool.length ? Math.round((convertedTotal / assignedPool.length) * 1000) / 10 : 0;
     const byTc = new Map<string, { name: string; confirmed: number; calls: number }>();
