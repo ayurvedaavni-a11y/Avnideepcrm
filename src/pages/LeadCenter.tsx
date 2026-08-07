@@ -32,26 +32,15 @@ import { CallLogModal } from '../components/CallLogModal';
 import { api } from '../db/apiClient';
 
 // ===================================================================
-// PRODUCTION-HARDENED: Active Pipeline Statuses
-const ACTIVE_PIPELINE_STATUSES: readonly string[] = [
-  'New Lead',
-  'Assigned',
-  'Calling',
-  'Interested',
-  'Ring',
-  'Callback',
-  'Callback Requested',
-  'Followup',
-  'Not Reachable',
-  'Busy',
-] as const;
+// All tab shows EVERY lead (all statuses) so Lead Center totals always
+// match Customers / Dashboard / Team counters.
 
 // ===== Pagination Constants =====
 const PAGE_SIZE = 50;
 
 // ===== Tab config for cleaner rendering =====
 const TABS = [
-  { key: 'All' as const, label: 'All Pipeline', statusFilter: 'active' as const },
+  { key: 'All' as const, label: 'All Leads' },
   { key: 'New Lead' as const, label: 'New Leads' },
   { key: 'Assigned' as const, label: 'Assigned' },
   { key: 'Calling' as const, label: 'Calling' },
@@ -166,8 +155,8 @@ export function LeadCenter() {
 
   // OPTIMIZATION: Pre-compute tab counts ONCE from date-filtered data
   const tabCounts = useMemo(() => {
-    const allActive = dateFilteredDeduped.filter(l => ACTIVE_PIPELINE_STATUSES.includes(l.status));
-    const counts: Record<string, number> = { 'All': allActive.length };
+    // 'All' counts EVERY lead — totals must match Customers / Dashboard / Team.
+    const counts: Record<string, number> = { 'All': dateFilteredDeduped.length };
     for (const tab of TABS) {
       if (tab.key === 'All') continue;
       const statuses = (tab as any)?.matchStatuses || [tab.key as string];
@@ -183,9 +172,7 @@ export function LeadCenter() {
   const filteredLeads = useMemo(() => {
     let filtered = dateFilteredDeduped;
 
-    if (activeTab === 'All') {
-      filtered = filtered.filter(lead => ACTIVE_PIPELINE_STATUSES.includes(lead.status));
-    } else {
+    if (activeTab !== 'All') {
       const tab = TABS.find(t => t.key === activeTab);
       const statuses = (tab as any)?.matchStatuses || [activeTab as string];
       filtered = filtered.filter(lead => statuses.includes(lead.status));

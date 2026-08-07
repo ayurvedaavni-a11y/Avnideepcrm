@@ -180,15 +180,30 @@ async function processQueue() {
   try {
     const entries = await db.syncQueue.orderBy('createdAt').toArray();
     if (entries.length === 0) { setSyncStatus({ pending: 0 }); return; }
+    const now = Date.now();
     for (const entry of entries) {
+      // Exponential backoff per entry — a failing row retries on its own
+      // schedule and can NEVER block the rows behind it in the queue.
+      const attempts = entry.attempts || 0;
+      if (entry.lastAttemptAt) {
+        const backoffMs = Math.min(30_000, 2_000 * Math.pow(2, Math.min(attempts, 5)));
+        if (now - new Date(entry.lastAttemptAt).getTime() < backoffMs) continue;
+      }
       try {
         await processEntry(entry);
         if (entry.id != null) await db.syncQueue.delete(entry.id);
       } catch (err: any) {
-        const attempts = (entry.attempts || 0) + 1;
-        if (entry.id != null) await db.syncQueue.update(entry.id, { attempts, lastError: String(err?.message || err).slice(0, 300) });
-        if (attempts <= 1) console.warn('[OnlineSync] push failed, will retry:', entry.table, err?.message);
-        break; // stop on error — retry on next tick
+        const next = attempts + 1;
+        if (entry.id != null) {
+          await db.syncQueue.update(entry.id, {
+            attempts: next,
+            lastAttemptAt: new Date().toISOString(),
+            lastError: String(err?.message || err).slice(0, 300),
+          });
+        }
+        if (next <= 2) console.warn('[OnlineSync] push failed, will retry:', entry.table, err?.message);
+        // CRITICAL FIX: never break here. A single permanently-failing row used
+        // to stall the WHOLE queue (stuck assignments + unsynced imports).
       }
     }
     setSyncStatus({ pending: await db.syncQueue.count() });

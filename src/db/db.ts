@@ -290,6 +290,7 @@ export interface SyncQueueEntry {
   record?: any;
   attempts: number;
   lastError?: string;
+  lastAttemptAt?: string;
   createdAt: string;
 }
 
