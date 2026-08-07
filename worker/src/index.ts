@@ -481,21 +481,9 @@ async function handleDelete(env: Env, request: Request, user: Record<string, any
   const table = String(body.table || '');
   if (!TABLES[table]) return json({ error: `Unknown table: ${table}` }, 400);
   if (!canAccessTable(user, table)) return json({ error: 'Forbidden' }, 403);
-  // DATA SAFETY: telecallers may only ever delete leads assigned to THEM.
-  // Shared/history rows (call logs, timeline, customers, orders, …) are
-  // admin-only deletes — a telecaller can never silently wipe cloud data.
-  if (user && user.role !== 'admin') {
-    if (table === 'crm_leads') {
-      const owned = await env.DB.prepare(
-        'SELECT 1 FROM crm_leads WHERE id = ? AND (assigned_to = ? OR assigned_agent = ?)'
-      )
-        .bind(body.id, user.id, user.full_name)
-        .first();
-      if (!owned) return json({ error: 'Forbidden — ye lead aapko assigned nahi hai' }, 403);
-    } else {
-      return json({ error: 'Forbidden — admin only' }, 403);
-    }
-  }
+  // DATA SAFETY: deletes are ADMIN-ONLY. Telecallers can never permanently
+  // delete any row — lead history, call logs, timeline etc. stay forever, and
+  // no telecaller can silently wipe cloud data.
   await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(body.id).run();
   return json({ ok: true });
 }

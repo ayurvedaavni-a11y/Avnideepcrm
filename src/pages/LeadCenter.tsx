@@ -645,7 +645,13 @@ export function LeadCenter() {
               try {
                 const r = await api.assignLeads(bulkAssignLead.leadIds, tc.id, tc.full_name, reassign);
                 const now = new Date().toISOString();
+                // Mirror locally, but match the server's skip rule: without
+                // reassign, rows already owned by someone stay untouched so the
+                // local DB can never overwrite the server's intended owner.
                 for (const id of bulkAssignLead.leadIds) {
+                  const l = await db.leads.get(id);
+                  const unassigned = !l || !l.assignedTo || l.assignedTo === '' || l.assignedTo === '0';
+                  if (!reassign && !unassigned) continue;
                   await db.leads.update(id, { assignedTo: tc.id, assignedAgent: tc.full_name, updatedAt: now });
                 }
                 res = { assigned: r.assigned, skipped: bulkAssignLead.leadIds.length - r.assigned };
