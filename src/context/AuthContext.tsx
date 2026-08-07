@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(() => {
       setUser(null);
       setProfile(null);
+      try { sessionStorage.removeItem('crm:post-login'); } catch { /* noop */ }
     });
     return () => setUnauthorizedHandler(null);
   }, []);
@@ -81,6 +82,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setProfile(res.profile);
     setUser(res.user ?? null);
+    // Signal that a fresh login just happened — the router (which mounts only
+    // now) uses this to land on the role's default page instead of whatever
+    // hash was left in the URL (e.g. never auto-open Team Management).
+    try { sessionStorage.setItem('crm:post-login', '1'); } catch { /* noop */ }
     return { ok: true };
   }, []);
 
@@ -88,6 +93,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try { await signOut(); } catch (e) { console.error(e); }
     setUser(null);
     setProfile(null);
+    // Wipe all temporary session state (redirect intent, search flags, caches)
+    // so nothing from the previous session leaks into the next login.
+    try {
+      sessionStorage.removeItem('crm:post-login');
+      localStorage.removeItem('crm_team_cache');
+    } catch { /* storage unavailable */ }
   }, []);
 
   const refreshProfile = useCallback(async () => {

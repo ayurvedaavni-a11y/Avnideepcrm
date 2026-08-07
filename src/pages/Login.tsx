@@ -109,7 +109,7 @@ export function Login({ onContinueOffline }: Props) {
         ) : (
           /* ---- Step 2: Role-specific login form ---- */
           <div className="max-w-md mx-auto">
-            <form onSubmit={handleSubmit} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl space-y-5">
+            <form onSubmit={handleSubmit} autoComplete="off" className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl space-y-5">
               <button
                 type="button"
                 onClick={() => { setRole(null); setError(''); }}
@@ -141,6 +141,7 @@ export function Login({ onContinueOffline }: Props) {
                   type="tel"
                   inputMode="numeric"
                   autoFocus
+                  autoComplete="off"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
                   placeholder="9876543210"
@@ -156,6 +157,7 @@ export function Login({ onContinueOffline }: Props) {
                 <input
                   type="password"
                   inputMode="numeric"
+                  autoComplete="new-password"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
                   placeholder="••••••"

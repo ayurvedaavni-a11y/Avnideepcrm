@@ -35,6 +35,17 @@ export function Team() {
 
   useEffect(() => { void load(); }, []);
 
+  // Defensive: even with autocomplete="off", some browsers autofill tel/
+  // password inputs right after mount and fire an input event, which would
+  // capture the login mobile number into this state. Wipe any such value so
+  // these fields always render empty on page open.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setName(''); setMobile(''); setPin(''); setNewPin('');
+    }, 50);
+    return () => clearTimeout(t);
+  }, []);
+
   const handleCreate = async () => {
     if (creating) return;
     const digits = mobile.replace(/\D/g, '');
@@ -139,13 +150,13 @@ export function Team() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rahul Sharma"
+              <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" placeholder="e.g. Rahul Sharma"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" />
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mobile Number</label>
               <input type="tel" inputMode="numeric" maxLength={10} value={mobile} onChange={(e) => setMobile(e.target.value)}
-                placeholder="9876543210"
+                autoComplete="off" placeholder="9876543210"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" />
             </div>
           </div>
@@ -153,7 +164,7 @@ export function Team() {
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login PIN (6-8 digits)</label>
               <input type="password" inputMode="numeric" maxLength={8} value={pin} onChange={(e) => setPin(e.target.value)}
-                placeholder="••••••"
+                autoComplete="new-password" placeholder="••••••"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" />
             </div>
             <div>
@@ -262,6 +273,7 @@ export function Team() {
                   type="password"
                   inputMode="numeric"
                   maxLength={8}
+                  autoComplete="new-password"
                   value={newPin}
                   onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
                   placeholder="••••••"

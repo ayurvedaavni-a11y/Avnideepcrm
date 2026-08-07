@@ -1,4 +1,5 @@
 import { useState, useEffect, memo, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import Search from 'lucide-react/dist/esm/icons/search'
@@ -12,6 +13,7 @@ import { Customer360Profile } from './Customer360Profile';
 import { format } from 'date-fns';
 
 export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -22,6 +24,14 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
   const [activeReminder, setActiveReminder] = useState<any>(null);
   // OPTIMIZATION: Use useRef instead of state for triggeredIds to prevent effect re-triggering
   const triggeredIdsRef = useRef<number[]>([]);
+
+  // Reset the global search whenever the route changes — search text must
+  // never persist across pages (and never hold the login mobile number).
+  useEffect(() => {
+    setSearchTerm('');
+    setResults([]);
+    setIsSearchOpen(false);
+  }, [location.pathname]);
 
   // Smart Followup Notification Engine
   // OPTIMIZATION: Only depends on followups (not triggeredIds) to prevent interval reset on each trigger
@@ -193,6 +203,7 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text" 
+              autoComplete="off" 
               placeholder="Global Search (Phone, Name, Order ID, Tracking)..." 
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setIsSearchOpen(true); }}

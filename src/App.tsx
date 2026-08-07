@@ -1,5 +1,5 @@
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { HashRouter as Router, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Layout } from './components/Layout';
 import { Toaster } from 'react-hot-toast';
@@ -40,6 +40,48 @@ const DBHealthCheck = lazy(() => import('./pages/DBHealthCheck').then(m => ({ de
 const RunTests = lazy(() => import('./pages/RunTests').then(m => ({ default: m.RunTests })));
 const Team = lazy(() => import('./pages/Team').then(m => ({ default: m.Team })));
 const TelecallerPerformance = lazy(() => import('./pages/TelecallerPerformance').then(m => ({ default: m.TelecallerPerformance })));
+
+/** After a fresh login, land on the role's default page — admin → Dashboard,
+ *  telecaller → Lead Center. Team Management only ever opens from the sidebar.
+ *  Deep links to other protected pages are preserved. Runs once, when the
+ *  router mounts right after a login (signalled via sessionStorage). */
+function PostLoginRedirect({ children }: { children: ReactNode }) {
+  const { profile, isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const handledRef = useRef(false);
+
+  // useLayoutEffect: redirect happens before paint, so the pre-redirect page
+  // (e.g. Team Management) never flashes on screen.
+  useLayoutEffect(() => {
+    if (handledRef.current) return;
+    let flagged = false;
+    try { flagged = sessionStorage.getItem('crm:post-login') === '1'; } catch { /* noop */ }
+    if (!flagged) return;
+    handledRef.current = true;
+    try { sessionStorage.removeItem('crm:post-login'); } catch { /* noop */ }
+
+    const p = location.pathname;
+    const isDefault =
+      p === '/' || p === '' || p === '/dashboard' || p === '/lead-center';
+    // Team Management must never auto-open right after login.
+    if (isDefault || p === '/team') {
+      navigate(profile?.role === 'admin' ? '/' : '/leads', { replace: true });
+      return;
+    }
+    // A telecaller landing on an admin-only deep link should go to their
+    // default (Lead Center) instead of being bounced to the Dashboard.
+    if (!isAdmin) {
+      const telecallerAllowed = ['/', '/leads', '/followups', '/orders'];
+      if (!telecallerAllowed.includes(p)) {
+        navigate('/leads', { replace: true });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return <>{children}</>;
+}
 
 /** Blocks admin-only routes for telecallers. */
 function RequireAdmin({ children }: { children: ReactNode }) {
@@ -141,7 +183,7 @@ function AppContent() {
       <Toaster position="top-right" />
       <Suspense fallback={<PageFallback />}>
         <Routes>
-        <Route path="/" element={<Layout />}>
+        <Route path="/" element={<PostLoginRedirect><Layout /></PostLoginRedirect>}>
           <Route index element={<Dashboard />} />
           <Route path="leads" element={<LeadCenter />} />
           <Route path="followups" element={<FollowUps />} />
