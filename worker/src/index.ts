@@ -250,16 +250,33 @@ async function handleTeam(env: Env, _request: Request, user: Record<string, any>
   const denied = requireAdmin(user);
   if (denied) return denied;
   // lead_count lets the admin see how many leads each telecaller currently owns.
-  const res = await env.DB.prepare(
-    `SELECT u.id, u.mobile, u.full_name, u.role, u.is_active, u.created_at,
-            (SELECT COUNT(*) FROM crm_leads WHERE assigned_to = CAST(u.id AS TEXT) OR assigned_agent = u.full_name) AS lead_count
-     FROM users u ORDER BY u.created_at DESC`
+  // Ownership rule (matches the pull/push enforcement): assigned_to is the
+  // authority; assigned_agent is only a fallback for legacy rows whose
+  // assigned_to was never populated. Two aggregate passes instead of a
+  // correlated subquery per user — uses idx_crm_leads_assigned_to and scales
+  // with O(leads + users) instead of O(leads × users).
+  const exact = await env.DB.prepare(
+    `SELECT CAST(u.id AS TEXT) AS uid, COALESCE(e.cnt, 0) AS cnt
+     FROM users u
+     LEFT JOIN (SELECT assigned_to AS aid, COUNT(*) AS cnt FROM crm_leads GROUP BY assigned_to) e
+       ON e.aid = CAST(u.id AS TEXT)`
   ).all();
+  const legacy = await env.DB.prepare(
+    `SELECT assigned_agent AS agent, COUNT(*) AS cnt FROM crm_leads
+     WHERE assigned_to IS NULL OR assigned_to = '' OR assigned_to = '0'
+     GROUP BY assigned_agent`
+  ).all();
+  const exactMap = new Map<string, number>();
+  for (const r of (exact.results || []) as Record<string, any>[]) exactMap.set(String(r.uid), Number(r.cnt) || 0);
+  const legacyMap = new Map<string, number>();
+  for (const r of (legacy.results || []) as Record<string, any>[]) legacyMap.set(String(r.agent || ''), Number(r.cnt) || 0);
+  const members = (await env.DB.prepare('SELECT id, mobile, full_name, role, is_active, created_at FROM users ORDER BY created_at DESC').all())
+    .results as Record<string, any>[];
   return json({
-    members: (res.results || []).map((r) => {
-      const row = r as Record<string, any>;
-      return { ...profileOf(row), lead_count: Number(row.lead_count ?? 0) };
-    }),
+    members: members.map((row) => ({
+      ...profileOf(row),
+      lead_count: (exactMap.get(String(row.id)) || 0) + (legacyMap.get(String(row.full_name || '')) || 0),
+    })),
   });
 }
 

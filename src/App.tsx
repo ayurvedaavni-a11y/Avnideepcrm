@@ -37,7 +37,6 @@ const CourierAnalytics = lazy(() => import('./pages/CourierAnalytics').then(m =>
 const GSTReports = lazy(() => import('./pages/GSTReports').then(m => ({ default: m.GSTReports })));
 const BackupCenter = lazy(() => import('./pages/BackupCenter').then(m => ({ default: m.BackupCenter })));
 const DBHealthCheck = lazy(() => import('./pages/DBHealthCheck').then(m => ({ default: m.DBHealthCheck })));
-const RunTests = lazy(() => import('./pages/RunTests').then(m => ({ default: m.RunTests })));
 const Team = lazy(() => import('./pages/Team').then(m => ({ default: m.Team })));
 const TelecallerPerformance = lazy(() => import('./pages/TelecallerPerformance').then(m => ({ default: m.TelecallerPerformance })));
 
@@ -209,7 +208,6 @@ function AppContent() {
           <Route path="team" element={<RequireAdmin><Team /></RequireAdmin>} />
           <Route path="performance" element={<RequireAdmin><TelecallerPerformance /></RequireAdmin>} />
           <Route path="settings" element={<RequireAdmin><Settings /></RequireAdmin>} />
-          <Route path="run-tests" element={<RequireAdmin><RunTests /></RequireAdmin>} />
           <Route path="db-health" element={<RequireAdmin><DBHealthCheck /></RequireAdmin>} />
         </Route>
       </Routes>
