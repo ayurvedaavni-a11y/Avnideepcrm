@@ -448,6 +448,14 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
   }
   if (Object.keys(data).length === 0) return json({ error: 'No writable columns' }, 400);
 
+  // DELTA-SYNC SAFETY: guarantee timestamps on pushed rows. Without this, a
+  // client that omits created_at/updated_at would create a row that incremental
+  // pulls (WHERE updated_at > cursor) can never see until the full re-pull
+  // safety net. Backward compatible — never overwrites a client-provided value.
+  const nowIso = new Date().toISOString();
+  if (def.columns.includes('created_at') && data.created_at == null) data.created_at = nowIso;
+  if (def.columns.includes('updated_at') && data.updated_at == null) data.updated_at = nowIso;
+
   let conflict: string | undefined = typeof body.conflictKey === 'string' ? body.conflictKey : undefined;
   // Only ever interpolate whitelisted conflict targets into SQL — client
   // input (or anything not a real column) must fall back to a plain insert.
