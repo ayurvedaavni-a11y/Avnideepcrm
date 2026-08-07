@@ -26,6 +26,7 @@ import { cn } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { useSyncStatus } from '../db/syncStatus';
 import { PwaInstallButton } from './PwaInstallButton';
+import logo from '../assets/logo.png';
 
 interface NavItem {
   name: string;
@@ -97,10 +98,18 @@ export const Sidebar = memo(function Sidebar() {
         )}
       >
         <div className="p-6 flex items-center justify-between">
-          <h1 className="text-xl font-bold tracking-wider text-blue-400">
-            AVNIDEEP<span className="text-white">CRM</span>
-            <span className="text-xs text-blue-500 block">PRO EDITION</span>
-          </h1>
+          <div className="flex items-center gap-3">
+            <img
+              src={logo}
+              alt="AVNIDEEP logo"
+              draggable={false}
+              className="h-10 w-10 shrink-0 rounded-lg bg-slate-800 object-contain ring-1 ring-white/15"
+            />
+            <h1 className="text-xl font-bold tracking-wider text-blue-400">
+              AVNIDEEP<span className="text-white">CRM</span>
+              <span className="text-xs text-blue-500 block">PRO EDITION</span>
+            </h1>
+          </div>
           <button
             onClick={() => setOpen(false)}
             className="lg:hidden p-2 -mr-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition"

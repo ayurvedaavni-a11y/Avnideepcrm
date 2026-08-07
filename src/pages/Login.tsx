@@ -10,6 +10,7 @@ import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
 import Users from 'lucide-react/dist/esm/icons/users'
 import { cn } from '../lib/utils';
 import { PwaInstallButton } from '../components/PwaInstallButton';
+import logo from '../assets/logo.png';
 
 type LoginRole = 'admin' | 'telecaller';
 
@@ -56,6 +57,12 @@ export function Login({ onContinueOffline }: Props) {
       <div className="relative w-full max-w-3xl px-6 py-10">
         {/* Brand */}
         <div className="text-center mb-10">
+          <img
+            src={logo}
+            alt="AVNIDEEP logo"
+            draggable={false}
+            className="mx-auto mb-5 h-20 w-20 rounded-2xl bg-slate-800 object-contain shadow-xl shadow-black/40 ring-1 ring-white/15"
+          />
           <h1 className="text-3xl font-black tracking-wider text-white">
             AVNIDEEP<span className="text-blue-400">CRM</span>
             <span className="text-xs text-blue-500 font-bold block mt-1 tracking-[0.3em]">PRO EDITION</span>
