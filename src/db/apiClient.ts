@@ -4,7 +4,13 @@
 // go through this fetch-based client.
 // =====================================================================
 
-const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined) || 'http://localhost:8787';
+// Production API base. `VITE_API_URL` comes from .env / .env.production / CI env.
+// Default is the live Cloudflare Worker — NEVER fall back to localhost, otherwise
+// a build made without the env var (e.g. Vercel / GitHub Actions) would call
+// http://localhost:8787 in production.
+const API_URL: string =
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/+$/, '') ||
+  'https://avnideep-crm-api.ayurvedaavni.workers.dev';
 
 const TOKEN_KEY = 'crm_auth_token';
 
