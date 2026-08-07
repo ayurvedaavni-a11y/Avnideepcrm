@@ -567,7 +567,7 @@ function FilterBar({ filters, setFilters, tcNames, couriers, products, onClear, 
             <XCircle size={13} /> Clear all
           </button>
         )}
-        <div className="ml-auto text-[11px] text-slate-400 font-medium">{resultCount} order{resultCount !== 1 ? 's' : ''} · <AnimatedNumber value={resultCount} format="plain" /></div>
+        <div className="ml-auto text-[11px] text-slate-400 font-medium"><AnimatedNumber value={resultCount} format="plain" /> order{resultCount !== 1 ? 's' : ''}</div>
       </div>
 
       {isOpen && (
@@ -642,8 +642,6 @@ function FilterBar({ filters, setFilters, tcNames, couriers, products, onClear, 
 // =====================================================================
 // Main component
 // =====================================================================
-const MAX_CARDS_PER_COLUMN = 500; // virtualization handles the rest
-
 function OrderPipelineContent() {
   const { isAdmin, profile } = useAuth();
   const allOrders = useLiveQuery(() => db.orders.toArray(), []) || [];
@@ -1009,7 +1007,7 @@ function OrderPipelineContent() {
               <KanbanColumn
                 key={stage.key}
                 stage={stage}
-                orders={(columnOrders[stage.key] || []).slice(0, MAX_CARDS_PER_COLUMN)}
+                orders={columnOrders[stage.key] || []}
                 leadMap={leadMap}
                 customerMap={customerMap}
                 onAdvance={handleAdvanceOrder}
