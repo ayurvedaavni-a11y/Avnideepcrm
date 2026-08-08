@@ -25,6 +25,7 @@ import { safeFormat } from '../lib/safeFormat';
 import { getBadgeClasses } from '../db/lifecycle';
 import { useDateFilter } from '../context/DateFilterContext';
 import { VirtualTable, type VirtualTableColumn } from '../components/VirtualTable';
+import { ModalPortal } from '../components/ModalPortal';
 
 const Customer360Profile = lazy(() => import('../components/Customer360Profile').then(m => ({ default: m.Customer360Profile })));
 
@@ -418,12 +419,14 @@ export function Customers() {
 
       {selectedCustomerId && (
         <Suspense fallback={
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+              <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-3 shadow-2xl">
               <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
               <p className="text-sm text-slate-500 font-medium">Loading customer details…</p>
             </div>
           </div>
+    </ModalPortal>
         }>
           <Customer360Profile
             customerId={selectedCustomerId}

@@ -15,6 +15,7 @@ import { downloadInvoicePDF, printInvoice, cancelInvoice, autoGenerateInvoice, g
 import { useNavigate } from 'react-router-dom';
 // exceljs imported dynamically in handleBulkExport
 import { useDateFilter } from '../context/DateFilterContext';
+import { ModalPortal } from '../components/ModalPortal';
 
 export function Invoices() {
   const invoices = useLiveQuery(() => db.invoices.reverse().toArray()) || [];
@@ -370,7 +371,8 @@ function InvoicePreviewModal({ invoice, onClose }: { invoice: Invoice; onClose: 
   }, [invoice]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="p-4 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-center">
           <div>
@@ -398,5 +400,6 @@ function InvoicePreviewModal({ invoice, onClose }: { invoice: Invoice; onClose: 
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

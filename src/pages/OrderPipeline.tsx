@@ -47,6 +47,7 @@ import { autoGenerateInvoice, downloadInvoicePDF } from '../db/invoiceEngine';
 import { updateOrderStatus, isShipmentStatus } from '../db/workflow';
 import { Customer360Profile } from '../components/Customer360Profile';
 import { OrderEditModal } from '../components/OrderEditModal';
+import { ModalPortal } from '../components/ModalPortal';
 import { useAuth } from '../context/AuthContext';
 
 // =====================================================================
@@ -1250,10 +1251,11 @@ function OrderDetailModal({ orderId, onClose, onEdit, canInvoice = true }: { ord
   if (!order || !customer) return null;
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="Order details">
-      <div className="bg-white w-full sm:max-w-2xl max-h-[92vh] sm:rounded-3xl rounded-t-3xl flex flex-col shadow-2xl av-slide-up sm:av-zoom-in">
+      <div className="bg-white w-full sm:max-w-2xl max-h-[calc(100dvh-2rem)] min-h-0 sm:rounded-3xl rounded-t-3xl flex flex-col shadow-2xl av-zoom-in">
         {/* Header */}
-        <div className="p-6 pb-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-start bg-gradient-to-br from-slate-50 to-white rounded-t-3xl">
+        <div className="p-6 pb-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-start bg-gradient-to-br from-slate-50 to-white rounded-t-3xl shrink-0">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-black text-slate-900">{customer.name}</h2>
@@ -1268,7 +1270,7 @@ function OrderDetailModal({ orderId, onClose, onEdit, canInvoice = true }: { ord
           <button onClick={onClose} aria-label="Close" className="p-2.5 hover:bg-slate-200 rounded-full transition"><X size={20} className="text-slate-400" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto av-scroll-thin p-6 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto av-scroll-thin p-6 space-y-6">
           {/* Summary grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
@@ -1346,7 +1348,7 @@ function OrderDetailModal({ orderId, onClose, onEdit, canInvoice = true }: { ord
         </div>
 
         {/* Footer actions */}
-        <div className="p-5 border-t border-slate-100 bg-slate-50 rounded-b-3xl grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] border-t border-slate-100 bg-slate-50 rounded-b-3xl grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
           <a href={`tel:${customer.mobile}`} className="flex items-center justify-center gap-2 py-2.5 rounded-xl bg-green-50 text-green-700 border border-green-100 font-bold text-xs hover:bg-green-100 transition active:scale-95">
             <Phone size={15} /> Call
           </a>
@@ -1370,6 +1372,7 @@ function OrderDetailModal({ orderId, onClose, onEdit, canInvoice = true }: { ord
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

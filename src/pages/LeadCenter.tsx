@@ -31,6 +31,7 @@ import MessageSquare from 'lucide-react/dist/esm/icons/message-square'
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
 import { CallLogModal } from '../components/CallLogModal';
 import { api } from '../db/apiClient';
+import { ModalPortal } from '../components/ModalPortal';
 
 // ===================================================================
 // All tab shows EVERY lead (all statuses) so Lead Center totals always
@@ -848,7 +849,8 @@ function FollowupModal({ lead, onClose, onSave }: any) {
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
       {/* ===== DESKTOP MODAL ===== */}
       <div className="hidden md:flex bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
@@ -878,6 +880,7 @@ function FollowupModal({ lead, onClose, onSave }: any) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -919,7 +922,8 @@ function NotInterestedModal({ onClose, onSave }: any) {
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
       {/* ===== DESKTOP MODAL ===== */}
       <div className="hidden md:flex bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
@@ -949,6 +953,7 @@ function NotInterestedModal({ onClose, onSave }: any) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -988,7 +993,8 @@ function BulkAssignModal({ count, telecallers, onClose, onAssign }: {
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
       {/* ===== DESKTOP MODAL ===== */}
       <div className="hidden md:flex bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
         <div className="p-5 border-b border-slate-100 shrink-0">
@@ -1022,6 +1028,7 @@ function BulkAssignModal({ count, telecallers, onClose, onAssign }: {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -1249,7 +1256,8 @@ function LeadForm({ onClose }: { onClose: () => void }) {
   return (
     <>
       {duplicateModal}
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+          <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
         {/* ===== DESKTOP MODAL ===== */}
         <div className="hidden md:flex bg-white rounded-2xl w-full max-w-[640px] max-h-[90vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
@@ -1295,6 +1303,7 @@ function LeadForm({ onClose }: { onClose: () => void }) {
           </form>
         </div>
       </div>
+    </ModalPortal>
     </>
   );
 }

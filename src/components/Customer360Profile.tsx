@@ -25,6 +25,7 @@ import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down'
 import ChevronUp from 'lucide-react/dist/esm/icons/chevron-up'
 import Lock from 'lucide-react/dist/esm/icons/lock'
 import { safeFormat } from '../lib/safeFormat';
+import { ModalPortal } from './ModalPortal';
 import { normalizeShipmentStatus, STATUS_COLORS } from '../db/shipmentEngine';
 import { downloadInvoicePDF } from '../db/invoiceEngine';
 import { parseAddressDetails, repairCustomerRecord } from '../db/addressRepairEngine';
@@ -158,9 +159,10 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end md:items-center justify-center">
+    <ModalPortal>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end md:items-center justify-center md:p-4">
       {/* ===== DESKTOP MODAL ===== */}
-      <div className="hidden md:flex bg-white rounded-2xl w-full max-w-[1000px] max-h-[90vh] flex-col shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+      <div className="hidden md:flex bg-white rounded-2xl w-full max-w-[1000px] max-h-[calc(100dvh-2rem)] flex-col shadow-2xl av-zoom-in overflow-hidden">
         {/* Sticky Header */}
         <div className="sticky top-0 z-10 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 px-6 py-4 shrink-0">
           <div className="flex items-start justify-between gap-4">
@@ -377,7 +379,7 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
       </div>
 
       {/* ===== MOBILE BOTTOM SHEET ===== */}
-      <div className="md:hidden bg-white w-full max-h-[92vh] rounded-t-3xl flex flex-col shadow-2xl av-slide-up overflow-hidden">
+      <div className="md:hidden bg-white w-full max-h-[calc(100dvh-2rem)] rounded-t-3xl flex flex-col shadow-2xl av-slide-up overflow-hidden">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-100 px-5 py-3">
           <div className="flex items-center justify-between mb-2">
@@ -492,7 +494,7 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
         </div>
 
         {/* Mobile footer */}
-        <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 flex gap-2 shrink-0">
+        <div className="border-t border-slate-100 bg-slate-50 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex gap-2 shrink-0">
           {customerLead && (
             <button onClick={() => setShowBookOrder(true)}
               className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1">
@@ -510,6 +512,7 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
         <BookOrderModal leadId={customerLead.id!} onClose={() => setShowBookOrder(false)} />
       )}
     </div>
+    </ModalPortal>
   );
 }
 

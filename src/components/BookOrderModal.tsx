@@ -14,6 +14,7 @@ import { getGSTConfig, getCompanyConfig } from '../db/settingsEngine';
 import { resolveCustomerLocation } from '../db/stateResolver';
 import { safeMoney } from '../lib/safe';
 import { removeDuplicateLeads } from '../db/workflow';
+import { ModalPortal } from './ModalPortal';
 
 interface Props {
   leadId: number;
@@ -292,7 +293,8 @@ export function BookOrderModal({ leadId, onClose }: Props) {
   if (!lead || !customer) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[95vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         
         {/* Header */}
@@ -491,6 +493,7 @@ export function BookOrderModal({ leadId, onClose }: Props) {
         <div className="fixed inset-0 z-[105]" onClick={() => setShowProductDropdown(false)}></div>
       )}
     </div>
+    </ModalPortal>
   );
 }
 

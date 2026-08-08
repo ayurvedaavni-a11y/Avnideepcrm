@@ -122,3 +122,15 @@ textarea {
   opacity: 0.4;
   transform: scale(0.98) rotate(0.5deg);
 }
+
+/* =====================================================================
+   Modal overlay layering
+   =====================================================================
+   Modals are portaled to <body> (ModalPortal) so they escape <main>'s
+   stacking context and can sit above the global header. While a modal is
+   open we lock the app's scroll container (<main>) so the page behind the
+   modal never scrolls. `overflow: hidden` alone does not clip `position:
+   fixed` descendants, so portaling stays safe even with this rule. */
+body.av-modal-open main {
+  overflow: hidden;
+}

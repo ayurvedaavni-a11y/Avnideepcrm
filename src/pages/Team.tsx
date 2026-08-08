@@ -13,6 +13,7 @@ import type { TeamProfile } from '../db/auth';
 import { api } from '../db/apiClient';
 import { useAuth } from '../context/AuthContext';
 import Smartphone from 'lucide-react/dist/esm/icons/smartphone'
+import { ModalPortal } from '../components/ModalPortal';
 
 export function Team() {
   const { profile } = useAuth();
@@ -289,7 +290,8 @@ export function Team() {
 
       {/* Delete-protection modal — telecaller has assigned leads */}
       {deleteTarget && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-red-100 flex justify-between items-center bg-red-50 rounded-t-2xl">
               <h2 className="text-lg font-bold text-red-700 flex items-center gap-2">
@@ -324,11 +326,13 @@ export function Team() {
             </div>
           </div>
         </div>
+    </ModalPortal>
       )}
 
       {/* Change PIN modal */}
       {pinResetMember && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="p-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-center">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -369,6 +373,7 @@ export function Team() {
             </div>
           </div>
         </div>
+    </ModalPortal>
       )}
     </div>
   );

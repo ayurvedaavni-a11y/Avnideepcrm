@@ -9,6 +9,7 @@ import { toast } from 'react-hot-toast';
 import { recordPayment } from '../db/invoiceEngine';
 import { safeFormat } from '../lib/safeFormat';
 import { useDateFilter } from '../context/DateFilterContext';
+import { ModalPortal } from '../components/ModalPortal';
 
 export function Payments() {
   const invoices = useLiveQuery(() => db.invoices.reverse().toArray()) || [];
@@ -203,7 +204,8 @@ function PaymentModal({ invoice, onClose }: { invoice: Invoice; onClose: () => v
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
         <div className="p-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-center">
           <div>
@@ -242,5 +244,6 @@ function PaymentModal({ invoice, onClose }: { invoice: Invoice; onClose: () => v
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

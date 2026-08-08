@@ -4,6 +4,7 @@ import { db } from '../db/db';
 import X from 'lucide-react/dist/esm/icons/x'
 import Save from 'lucide-react/dist/esm/icons/save'
 import { toast } from 'react-hot-toast';
+import { ModalPortal } from './ModalPortal';
 
 interface Props {
   orderId: number;
@@ -107,16 +108,17 @@ export function OrderEditModal({ orderId, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
+    <ModalPortal>
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-[110] p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-2xl max-h-[calc(100dvh-2rem)] min-h-0 flex flex-col shadow-2xl av-zoom-in">
         {/* Header */}
-        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <h2 className="text-lg font-black text-slate-800">Edit Order — {order.orderId}</h2>
           <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-full transition"><X size={18} className="text-slate-500" /></button>
         </div>
 
         {/* Form */}
-        <div className="flex-1 overflow-y-auto av-scroll-thin p-5 space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto av-scroll-thin p-5 space-y-6">
           {/* Customer Section */}
           <div>
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Customer Details</h3>
@@ -157,7 +159,7 @@ export function OrderEditModal({ orderId, onClose }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+        <div className="pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl shrink-0">
           <button onClick={onClose} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition">Cancel</button>
           <button onClick={handleSave} disabled={saving}
             className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold flex items-center gap-2 hover:scale-105 active:scale-95 transition disabled:opacity-50">
@@ -166,6 +168,7 @@ export function OrderEditModal({ orderId, onClose }: Props) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

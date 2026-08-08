@@ -28,6 +28,7 @@ import { processLeadStatusUpdate } from '../db/workflow';
 import { useDateFilter } from '../context/DateFilterContext';
 import { useAuth } from '../context/AuthContext';
 import { TELECALLER_STATUSES, statusLabel } from '../db/lifecycle';
+import { ModalPortal } from '../components/ModalPortal';
 
 // ========== Types ==========
 type PipelineStage = 'all' | 'overdue' | 'due-today' | 'scheduled' | 'callback' | 're-engaged' | 'hot' | 'converted' | 'closed';
@@ -637,7 +638,8 @@ function SnoozeModal({ lead, customer, onClose, onSave }: any) {
   const [time, setTime] = useState(lead.followupTime || '');
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -693,6 +695,7 @@ function SnoozeModal({ lead, customer, onClose, onSave }: any) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -703,7 +706,8 @@ function StatusChangeModal({ lead, customer, onClose, onSave }: any) {
   const [notes, setNotes] = useState('');
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center">
           <h2 className="text-lg font-bold text-slate-800">Update Status</h2>
@@ -746,6 +750,7 @@ function StatusChangeModal({ lead, customer, onClose, onSave }: any) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -802,7 +807,8 @@ function FollowupHistoryModal({ lead, customer, followups, onClose, onViewTimeli
   }, [followups, allTimelineLogs]);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -911,5 +917,6 @@ function FollowupHistoryModal({ lead, customer, followups, onClose, onViewTimeli
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

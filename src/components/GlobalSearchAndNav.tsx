@@ -11,6 +11,7 @@ import Check from 'lucide-react/dist/esm/icons/check'
 import { NotificationBell } from './NotificationBell';
 import { Customer360Profile } from './Customer360Profile';
 import { format } from 'date-fns';
+import { ModalPortal } from './ModalPortal';
 
 export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
   const location = useLocation();
@@ -129,7 +130,8 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
   return (
     <>
       {activeReminder && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <ModalPortal>
+<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white border-2 border-amber-400 rounded-2xl w-full max-w-md shadow-2xl p-6 relative overflow-hidden animate-bounce-short">
             <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-amber-400 to-orange-500"></div>
             
@@ -188,6 +190,7 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
             </div>
           </div>
         </div>
+    </ModalPortal>
       )}
 
       <div className="bg-white border-b border-slate-200 px-3 sm:px-6 lg:px-8 py-2.5 lg:py-3 flex justify-between items-center gap-3 z-10 sticky top-0">

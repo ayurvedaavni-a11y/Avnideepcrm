@@ -10,6 +10,7 @@ import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle'
 import { safeFormat } from '../lib/safeFormat';
 import { normalizeShipmentStatus, STATUS_COLORS, TimelineEntry } from '../db/shipmentEngine';
+import { ModalPortal } from './ModalPortal';
 
 interface Props {
   orderId: number;
@@ -64,7 +65,8 @@ export function ShipmentTrackingTimeline({ orderId, isOpen, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
           <div>
@@ -149,5 +151,6 @@ export function ShipmentTrackingTimeline({ orderId, isOpen, onClose }: Props) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

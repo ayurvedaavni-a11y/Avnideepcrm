@@ -12,6 +12,7 @@ import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
 import { toast } from 'react-hot-toast';
 import { adjustStock } from '../db/inventoryEngine';
 import { safeFormat } from '../lib/safeFormat';
+import { ModalPortal } from '../components/ModalPortal';
 
 const EMPTY_PRODUCT: Omit<Product, 'id'> = {
   sku: '',
@@ -217,7 +218,8 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="p-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-center">
           <h2 className="text-lg font-bold text-slate-800">{product ? 'Edit Product' : 'Add New Product'}</h2>
@@ -250,6 +252,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 
@@ -284,7 +287,8 @@ function StockHistoryModal({ product, onClose }: { product: Product; onClose: ()
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center">
           <div>
@@ -323,5 +327,6 @@ function StockHistoryModal({ product, onClose }: { product: Product; onClose: ()
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

@@ -7,6 +7,7 @@ import CheckCircle from 'lucide-react/dist/esm/icons/check-circle'
 import XCircle from 'lucide-react/dist/esm/icons/x-circle'
 import Receipt from 'lucide-react/dist/esm/icons/receipt'
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right'
+import { ModalPortal } from './ModalPortal';
 
 interface Props {
   customer: Customer;
@@ -35,7 +36,8 @@ export function DuplicateCustomerAlert({ customer, onMerge, onContinue, onCancel
   const isHighRisk = customer.riskLevel === 'High' || customer.riskLevel === 'Critical';
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in duration-150">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in duration-150">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className={`p-5 border-b ${isFake ? 'bg-red-50 border-red-200' : isHighRisk ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'} rounded-t-2xl flex justify-between items-start`}>
@@ -153,6 +155,7 @@ export function DuplicateCustomerAlert({ customer, onMerge, onContinue, onCancel
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
 

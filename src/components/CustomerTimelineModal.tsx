@@ -11,6 +11,7 @@ import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle'
 import Phone from 'lucide-react/dist/esm/icons/phone'
 import Edit3 from 'lucide-react/dist/esm/icons/edit-3'
 import { format } from 'date-fns';
+import { ModalPortal } from './ModalPortal';
 
 interface Props {
   customerId: number;
@@ -76,7 +77,8 @@ export function CustomerTimelineModal({ customerId, isOpen, onClose }: Props) {
   if (!isOpen || !customer) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center p-6 border-b border-slate-100">
           <div>
@@ -227,5 +229,6 @@ export function CustomerTimelineModal({ customerId, isOpen, onClose }: Props) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }

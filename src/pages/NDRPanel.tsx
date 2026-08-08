@@ -11,6 +11,7 @@ import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right'
 import { toast } from 'react-hot-toast';
 import { updateOrderStatus } from '../db/workflow';
 import { useDateFilter } from '../context/DateFilterContext';
+import { ModalPortal } from '../components/ModalPortal';
 
 // ===== Pagination =====
 const PAGE_SIZE = 20;
@@ -357,7 +358,8 @@ function NDRActionModal({ ndrCase, onClose, onSave }: any) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <ModalPortal>
+<div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
           <div>
@@ -425,5 +427,6 @@ function NDRActionModal({ ndrCase, onClose, onSave }: any) {
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 }
