@@ -672,20 +672,20 @@ function FilterBar({ filters, setFilters, tcNames, couriers, products, onClear, 
             </select>
           </div>
           <div>
-            <label className={labelCls}>Date from</label>
-            <input type="date" value={filters.dateFrom} onChange={e => set({ dateFrom: e.target.value })} className={inputCls} />
+            <label htmlFor="filter-date-from" className={labelCls}>Date from</label>
+            <input id="filter-date-from" name="filter-date-from" type="date" value={filters.dateFrom} onChange={e => set({ dateFrom: e.target.value })} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Date to</label>
-            <input type="date" value={filters.dateTo} onChange={e => set({ dateTo: e.target.value })} className={inputCls} />
+            <label htmlFor="filter-date-to" className={labelCls}>Date to</label>
+            <input id="filter-date-to" name="filter-date-to" type="date" value={filters.dateTo} onChange={e => set({ dateTo: e.target.value })} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Min ₹</label>
-            <input type="number" min={0} placeholder="0" value={filters.minAmount} onChange={e => set({ minAmount: e.target.value })} className={inputCls} />
+            <label htmlFor="filter-min-amount" className={labelCls}>Min ₹</label>
+            <input id="filter-min-amount" name="filter-min-amount" type="number" min={0} placeholder="0" value={filters.minAmount} onChange={e => set({ minAmount: e.target.value })} className={inputCls} />
           </div>
           <div>
-            <label className={labelCls}>Max ₹</label>
-            <input type="number" min={0} placeholder="No limit" value={filters.maxAmount} onChange={e => set({ maxAmount: e.target.value })} className={inputCls} />
+            <label htmlFor="filter-max-amount" className={labelCls}>Max ₹</label>
+            <input id="filter-max-amount" name="filter-max-amount" type="number" min={0} placeholder="No limit" value={filters.maxAmount} onChange={e => set({ maxAmount: e.target.value })} className={inputCls} />
           </div>
         </div>
       )}
@@ -1014,10 +1014,13 @@ function OrderPipelineContent() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
               <input
+                id="order-search"
+                name="order-search"
                 type="text"
                 placeholder="Search name, mobile, order, AWB, product..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
+                aria-label="Search orders"
                 className="pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm w-64 lg:w-80 bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition placeholder:text-slate-400"
               />
             </div>
