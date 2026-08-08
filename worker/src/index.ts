@@ -415,6 +415,59 @@ async function handleChangePin(env: Env, request: Request, user: Record<string, 
   return json({ ok: true });
 }
 
+
+async function handleFactoryReset(env: Env, request: Request, user: Record<string, any> | null): Promise<Response> {
+  const denied = requireAdmin(user);
+  if (denied) return denied;
+  const body = await readJson(request);
+
+  // Brute-force guard: reuse login rate limiter (5-min window, max 10 attempts).
+  const ip = request.headers.get('CF-Connecting-IP') || 'local';
+  if (await recordLoginFailure(env, ip)) {
+    return json({ error: 'Bahut saare attempts — thodi der baad try karein.' }, 429);
+  }
+
+  // Re-verify the admin's own login PIN before any destructive wipe.
+  const row = await env.DB.prepare('SELECT pin_hash FROM users WHERE id = ?').bind(Number(user!.id)).first();
+  const iters = pbkdf2Iters(env);
+  const ok = await verifyPin(String(body.pin || '').trim(), String((row as any)?.pin_hash || ''), iters);
+  // 403 (not 401) so a wrong PIN never logs the admin out of the app.
+  if (!ok) return json({ error: 'PIN galat hai — factory reset blocked.' }, 403);
+
+  // Tombstone every row about to be deleted so other devices prune locally.
+  const synced = ['crm_customers', 'crm_leads', 'crm_orders', 'crm_spacel_followups', 'crm_timeline_logs', 'crm_notifications', 'crm_call_logs'];
+  const future = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  for (const t of synced) {
+    try {
+      await env.DB.prepare(
+        `INSERT INTO crm_sync_tombstones (tbl, row_id, deleted_at) SELECT '${t}', id, ? FROM ${t}`
+      ).bind(future).run();
+    } catch { /* table absent — ignore */ }
+  }
+
+  // Wipe business data (keep users, settings, products, invoice settings).
+  const WIPE = [
+    'leads', 'crm_leads', 'crm_orders', 'crm_customers', 'crm_invoices', 'crm_invoice_items',
+    'crm_logistics', 'crm_ndr_cases', 'crm_payments', 'crm_call_logs', 'crm_timeline_logs',
+    'crm_notifications', 'crm_spacel_followups', 'crm_inventory_logs', 'crm_shipment_scans',
+  ];
+  let deleted = 0;
+  for (const t of WIPE) {
+    try {
+      const res = await env.DB.prepare(`DELETE FROM ${t}`).run();
+      deleted += Number((res.meta as any)?.changes ?? 0);
+    } catch { /* table absent */ }
+  }
+  // Fresh auto-increment IDs.
+  try {
+    await env.DB.prepare(
+      `DELETE FROM sqlite_sequence WHERE name IN (${WIPE.map((t) => `'${t}'`).join(',')})`
+    ).run();
+  } catch { /* no sequences */ }
+
+  return json({ ok: true, deleted });
+}
+
 // ---------------------------------------------------------------------
 // sync handlers
 // ---------------------------------------------------------------------
@@ -1226,6 +1279,7 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
 
       // ---- self-healing repair (admin) ----
       if (path === '/api/admin/repair-assignments' && request.method === 'POST') return handleRepairAssignments(env, request, user);
+      if (path === '/api/admin/factory-reset' && request.method === 'POST') return handleFactoryReset(env, request, user);
 
       // ---- settings + performance ----
       if (path === '/api/settings' && request.method === 'GET') return handleSettingsGet(env, request, user);

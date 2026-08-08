@@ -46,3 +46,5 @@ scripts/upload-debug.mjs
 scripts/upload-helper.mjs
 scripts/upload-helper2.mjs
 scripts/upload-helper3.mjs
+
+.vercel

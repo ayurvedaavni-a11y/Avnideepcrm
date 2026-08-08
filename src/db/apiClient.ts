@@ -124,6 +124,11 @@ export const api = {
       method: 'POST',
       body: { currentPin, newPin },
     }),
+  factoryReset: (pin: string) =>
+    request<{ ok: boolean; deleted: number }>('/api/admin/factory-reset', {
+      method: 'POST',
+      body: { pin },
+    }),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', { method: 'POST', body: {} }),
 
   // ---- lead assignment (admin) ----

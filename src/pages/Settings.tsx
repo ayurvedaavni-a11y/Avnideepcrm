@@ -27,6 +27,9 @@ function SettingsContent() {
   const [pinOk, setPinOk] = useState(false);
   const [commissionRate, setCommissionRate] = useState('');
   const [commissionSaving, setCommissionSaving] = useState(false);
+  const [resetArmed, setResetArmed] = useState(false);
+  const [resetPin, setResetPin] = useState('');
+  const [resetBusy, setResetBusy] = useState(false);
 
   // Load current commission rate once (admin-only editor).
   useEffect(() => {
@@ -223,14 +226,23 @@ function SettingsContent() {
   };
 
   const handleReset = async () => {
-    if (window.confirm('Are you ABSOLUTELY sure? This will delete ALL data. Type "YES" to confirm.') === false) return;
+    if (!resetArmed) {
+      if (window.confirm('Are you ABSOLUTELY sure? This will PERMANENTLY delete ALL data (leads, orders, customers) from the CLOUD database too. Type "YES" to confirm.') === false) return;
+      setResetArmed(true);
+      return;
+    }
+    const pin = resetPin.trim();
+    if (!pin) { toast.error('Admin PIN daalein'); return; }
+    setResetBusy(true);
     try {
+      const res = await api.factoryReset(pin);
       await db.delete();
       await db.open();
-      toast.success('Database reset successfully. Please reload.');
+      toast.success(`Factory reset complete — ${res?.deleted ?? 0} records wiped from cloud.`);
       setTimeout(() => window.location.reload(), 1500);
-    } catch (error) {
-      toast.error('Reset failed');
+    } catch (e: any) {
+      toast.error(e?.message || 'Reset failed — PIN galat hai');
+      setResetBusy(false);
     }
   };
 
@@ -340,14 +352,38 @@ function SettingsContent() {
           <div className="flex justify-between items-center p-4 bg-red-50 rounded-lg border border-red-200">
             <div>
               <h3 className="font-bold text-red-800">Danger Zone: Factory Reset</h3>
-              <p className="text-sm text-red-600">Wipe all data, customers, and orders permanently.</p>
+              <p className="text-sm text-red-600">Wipe all data, customers, and orders permanently — cloud D1 se bhi (admin PIN confirm).</p>
             </div>
-            <button 
-              onClick={handleReset}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg flex items-center gap-2 hover:bg-red-700 transition font-medium shadow-sm"
-            >
-              <RotateCcw size={18} /> Reset Database
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              {resetArmed && (
+                <>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    placeholder="Admin PIN"
+                    value={resetPin}
+                    onChange={(e) => setResetPin(e.target.value)}
+                    autoFocus
+                    className="w-32 border border-red-300 rounded-lg px-3 py-2 text-sm tracking-[0.3em] text-center focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                  />
+                  <button
+                    onClick={() => { setResetArmed(false); setResetPin(''); }}
+                    disabled={resetBusy}
+                    className="px-3 py-2 bg-slate-200 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-300 transition disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+              <button
+                onClick={handleReset}
+                disabled={resetBusy}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg flex items-center gap-2 hover:bg-red-700 transition font-medium shadow-sm disabled:opacity-50"
+              >
+                <RotateCcw size={18} /> {resetArmed ? 'Confirm Factory Reset' : resetBusy ? 'Resetting...' : 'Reset Database'}
+              </button>
+            </div>
           </div>
         </div>
       </div>
