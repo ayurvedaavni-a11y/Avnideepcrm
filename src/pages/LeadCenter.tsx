@@ -152,6 +152,18 @@ export function LeadCenter() {
     return Array.from(leadMap.values());
   }, [visibleLeads]);
 
+  // Resolve LOCAL lead ids -> CLOUD ids before any server-side delete.
+  // Local Dexie ids and D1 ids can diverge (offline creates, bulk imports,
+  // resets) — deleting with the wrong id would wipe a DIFFERENT lead's row.
+  const resolveCloudIds = async (localIds: number[]): Promise<number[]> => {
+    const out: number[] = [];
+    for (const id of localIds) {
+      const m = await db.syncMap.where('[localTable+localId]').equals(['leads', id]).first();
+      if (m?.cloudId) out.push(m.cloudId);
+    }
+    return out;
+  };
+
   // Build mobile count map for duplicate detection
   const mobileCountMap = useMemo(() => {
     const countMap = new Map<string, number>();
@@ -430,7 +442,8 @@ export function LeadCenter() {
                     e.stopPropagation();
                     if (!window.confirm(`Permanently delete lead #${lead.id} from the cloud too?`)) return;
                     try {
-                      await api.deleteBulk('leads', [lead.id]);
+                      const cloudIds = await resolveCloudIds([lead.id]);
+                      if (cloudIds.length) await api.deleteBulk('leads', cloudIds);
                       await db.leads.delete(lead.id);
                       toast.success('Lead deleted');
                     } catch (err: any) {
@@ -622,7 +635,8 @@ export function LeadCenter() {
                 if (!window.confirm(`Permanently delete ${n} selected lead(s)? This also deletes them from the cloud D1.`)) return;
                 const ids = Array.from(selectedIds);
                 try {
-                  const r = await api.deleteBulk('leads', ids);
+                  const cloudIds = await resolveCloudIds(ids);
+                  const r = cloudIds.length ? await api.deleteBulk('leads', cloudIds) : { deleted: 0 };
                   for (const id of ids) await db.leads.delete(id);
                   toast.success((r?.deleted ?? ids.length) + ' lead(s) deleted');
                   setSelectedIds(new Set());

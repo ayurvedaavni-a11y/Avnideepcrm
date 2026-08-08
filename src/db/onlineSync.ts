@@ -200,7 +200,12 @@ async function processQueue() {
         // retrying — dead-letter them so they stop inflating "items sync
         // pending" forever. Transient errors (network / 5xx) retry with
         // backoff and only die after 6 attempts.
-        const permanent = (err as any)?.status >= 400 && (err as any)?.status < 500;
+        const s = Number((err as any)?.status || 0);
+        // Validation rejections can never succeed by retrying. Auth errors
+        // (401/403), throttling (429), 5xx and network (0) are transient —
+        // dead-lettering them would silently drop pending pushes after a
+        // re-login. They still die after 6 attempts to cap queue growth.
+        const permanent = s === 400 || s === 404 || s === 422;
         const dead = permanent || next >= 6;
         if (entry.id != null) {
           await db.syncQueue.update(entry.id, {
@@ -341,7 +346,12 @@ async function pullFromCloud(userId: string, forceFull = false): Promise<{ ok: b
     const serverEpoch = Number(res.epoch ?? 0);
     const epochKey = EPOCH_PREFIX + userId;
     const storedEpoch = Number(localStorage.getItem(epochKey) || '0');
-    if (serverEpoch > 0 && storedEpoch > 0 && serverEpoch !== storedEpoch) {
+    // Mismatch covers upgrading devices too: a client that synced under the
+    // OLD code has no stored epoch (0) but may hold stale local data + a
+    // pending queue — it must purge exactly like everyone else. Fresh
+    // installs purge an empty DB harmlessly (equality check still prevents
+    // purging when no reset ever happened: both epochs stay 0).
+    if (serverEpoch > 0 && storedEpoch !== serverEpoch) {
       for (const k of ORDERED_KEYS) await (db as any)[SYNC_TABLES[k].dexie].clear();
       await db.syncQueue.clear();
       await db.syncMap.clear();
