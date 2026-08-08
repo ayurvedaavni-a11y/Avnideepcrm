@@ -70,7 +70,7 @@ export function Dashboard() {
   // ===================================================================
   const myLeads = useMemo(() => {
     if (isAdmin || !profile?.id) return [];
-    return allLeads.filter(l => l.assignedTo === profile.id || l.assignedAgent === profile.full_name);
+    return allLeads.filter(l => String(l.assignedTo || '') === String(profile.id) || String(l.assignedAgent || '') === String(profile.full_name));
   }, [allLeads, isAdmin, profile]);
 
   const myCalls = useMemo(() => {

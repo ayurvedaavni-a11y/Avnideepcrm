@@ -88,7 +88,7 @@ export function FollowUps() {
   const { profile: authProfile, isAdmin } = useAuth();
   const leads = useLiveQuery(() => db.leads.filter(l => 
     ['Followup', 'Callback', 'Callback Requested', 'Not Reachable', 'Busy', 'Interested', 'Ring', 'Order Booked', 'Order Confirmed', 'Not Interested'].includes(l.status) &&
-    (isAdmin || !authProfile?.id || l.assignedTo === authProfile.id || l.assignedAgent === authProfile.full_name)
+    (isAdmin || !authProfile?.id || String(l.assignedTo || '') === String(authProfile.id) || String(l.assignedAgent || '') === String(authProfile.full_name))
   ).toArray(), [isAdmin, authProfile?.id, authProfile?.full_name]) || [];
   const allCustomers = useLiveQuery(() => db.customers.toArray()) || [];
   const [activePipeline, setActivePipeline] = useState<PipelineStage>('all');

@@ -85,7 +85,11 @@ export function LeadCenter() {
   // TELECALLER ISOLATION: non-admin users see ONLY their own assigned leads
   const visibleLeads = useMemo(() => {
     if (isAdmin || !authProfile?.id) return leads;
-    return leads.filter(l => l.assignedTo === authProfile.id || l.assignedAgent === authProfile.full_name);
+    // Type-safe: assignedTo comes from cloud as string (e.g. "26") while
+    // authProfile.id is a number (26) - strict === used to hide leads.
+    const myId = String(authProfile.id);
+    const myName = authProfile.full_name || '';
+    return leads.filter(l => String(l.assignedTo || '') === myId || String(l.assignedAgent || '') === myName);
   }, [leads, isAdmin, authProfile]);
 
   // Filters & Pagination state
@@ -202,7 +206,7 @@ export function LeadCenter() {
 
     // Extra filters: telecaller / state / status / product
     if (filterTelecaller) {
-      filtered = filtered.filter(lead => lead.assignedTo === filterTelecaller || lead.assignedAgent === filterTelecaller);
+      filtered = filtered.filter(lead => String(lead.assignedTo || '') === String(filterTelecaller) || String(lead.assignedAgent || '') === String(filterTelecaller));
     }
     if (filterState) {
       filtered = filtered.filter(lead => {

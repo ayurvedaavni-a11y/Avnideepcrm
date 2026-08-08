@@ -48,7 +48,7 @@ export async function getTelecallerStats(
   telecallerName?: string
 ): Promise<TelecallerStats> {
   const [leads, logs] = await Promise.all([db.leads.toArray(), db.callLogs.toArray()]);
-  const myLeads = leads.filter(l => l.assignedTo === telecallerId || (telecallerName && l.assignedAgent === telecallerName));
+  const myLeads = leads.filter(l => String(l.assignedTo || '') === String(telecallerId) || (telecallerName && String(l.assignedAgent || '') === String(telecallerName)));
   const myLogs = logs.filter(l => l.telecallerId === telecallerId);
   const today = todayStr();
 

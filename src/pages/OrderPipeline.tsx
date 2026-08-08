@@ -821,7 +821,7 @@ function OrderPipelineContent() {
 
   // ===== Telecaller view data =====
   const tcLeads = useMemo(
-    () => profile && !isAdmin ? allLeads.filter(l => l.assignedTo === profile.id || (!l.assignedTo && l.assignedAgent === profile.full_name)) : [],
+    () => profile && !isAdmin ? allLeads.filter(l => String(l.assignedTo || '') === String(profile.id) || (!l.assignedTo && String(l.assignedAgent || '') === String(profile.full_name))) : [],
     [profile, isAdmin, allLeads]
   );
   const tcLeadIds = useMemo(() => new Set(tcLeads.map(l => l.id)), [tcLeads]);
