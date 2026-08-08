@@ -505,8 +505,8 @@ async function maybeLinkLeadToOrder(env: Env, table: string, cloudRowId: number)
   if (table !== 'crm_orders' || !cloudRowId || cloudRowId <= 0) return;
   try {
     const order = await env.DB.prepare(
-      'SELECT lead_id, booked_by_name, order_id, product, status FROM crm_orders WHERE id = ?'
-    ).bind(cloudRowId).first<{ lead_id: number; booked_by_name: string | null; order_id: string; product: string | null; status: string }>();
+      'SELECT lead_id, customer_id, booked_by_name, order_id, product, status FROM crm_orders WHERE id = ?'
+    ).bind(cloudRowId).first<{ lead_id: number; customer_id: number | null; booked_by_name: string | null; order_id: string; product: string | null; status: string }>();
     const leadId = Number(order?.lead_id || 0);
     if (!order || !leadId || leadId <= 0) return;
     // ORDER -> LEAD STATUS MIRROR (single authoritative lifecycle). Whenever
@@ -536,10 +536,13 @@ async function maybeLinkLeadToOrder(env: Env, table: string, cloudRowId: number)
         order.booked_by_name || 'Telecaller', now,
       ),
     ];
-    if (Number(lead.customer_id || 0) > 0) {
+    // Mirror the customer that OWNS the order (fallback to the lead's customer)
+    // — we are mirroring the ORDER's status, so the order's customer wins.
+    const mirrorCustomerId = Number(order.customer_id || 0) || Number(lead.customer_id || 0);
+    if (mirrorCustomerId > 0) {
       stmts.push(
         env.DB.prepare('UPDATE crm_customers SET current_status = ?, updated_at = ? WHERE id = ?')
-          .bind(targetStatus, now, lead.customer_id)
+          .bind(targetStatus, now, mirrorCustomerId)
       );
     }
     await env.DB.batch(stmts);
@@ -785,7 +788,6 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
       // identical values (idempotent re-push) — check existence either way.
       if (Number((upd.meta as any)?.changes ?? 0) > 0) {
         await maybeAutoCreateInvoice(env, table, Number(data.id) || 0);
-      await maybeLinkLeadToOrder(env, table, Number(data.id) || 0);
         await maybeLinkLeadToOrder(env, table, Number(data.id) || 0);
         return json({ id: data.id });
       }
