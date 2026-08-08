@@ -19,7 +19,7 @@ import { Customer360Profile } from '../components/Customer360Profile';
 import { BookOrderModal } from '../components/BookOrderModal';
 import { useDateFilter } from '../context/DateFilterContext';
 import { useAuth } from '../context/AuthContext';
-import { TELECALLER_STATUSES } from '../db/lifecycle';
+import { TELECALLER_STATUSES, ADMIN_STATUSES, statusLabel } from '../db/lifecycle';
 import { assignLead, bulkAssignLeads, removeAssignment } from '../db/assignmentEngine';
 import { listTeamMembers } from '../db/auth';
 import type { TeamProfile } from '../db/auth';
@@ -331,8 +331,8 @@ export function LeadCenter() {
               ${lead.status === 'Fake Lead' ? 'bg-red-50 text-red-700 border-red-200' : ''}
             `}
           >
-            {TELECALLER_STATUSES.map(st => (
-              <option key={st} value={st}>{st}</option>
+            {(isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).map(st => (
+              <option key={st} value={st}>{statusLabel(st)}</option>
             ))}
           </select>
         )
@@ -578,7 +578,7 @@ export function LeadCenter() {
         <select id="lead-filter-status" name="lead-filter-status" aria-label="Filter by status" value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
           className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none">
           <option value="">All Statuses</option>
-          {TELECALLER_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+          {(isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).map(st => <option key={st} value={st}>{statusLabel(st)}</option>)}
         </select>
         <input id="lead-filter-product" name="lead-filter-product" aria-label="Filter by product" value={filterProduct} onChange={(e) => { setFilterProduct(e.target.value); setPage(0); }}
           placeholder="Filter by product..." className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none w-44" />
@@ -897,6 +897,7 @@ function BulkAssignModal({ count, telecallers, onClose, onAssign }: {
 }
 
 function LeadForm({ onClose }: { onClose: () => void }) {
+  const { isAdmin } = useAuth();
   const { profile: authProfile } = useAuth();
   const [formData, setFormData] = useState({
     mobile: '', name: '', alternateNumber: '', address: '', pincode: '', city: '', state: '',
@@ -1054,7 +1055,7 @@ function LeadForm({ onClose }: { onClose: () => void }) {
                     <input id="lead-form-amount" name="lead-form-amount" required type="number" value={formData.expectedAmount} onChange={e => setFormData({...formData, expectedAmount: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                     <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-                      {TELECALLER_STATUSES.map(st => <option key={st}>{st}</option>)}
+                      {(isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).map(st => <option key={st} value={st}>{statusLabel(st)}</option>)}
                     </select></div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

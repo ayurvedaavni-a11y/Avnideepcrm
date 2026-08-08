@@ -659,6 +659,19 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
       delete data[p];
     }
   }
+  // TELECALLER LEAD-STATUS WHITELIST (UI + API): telecallers may only set one
+  // of the 8 sales-pipeline statuses. Everything else (Fake Lead, Duplicate,
+  // NDR, fulfilment statuses, terminal flags) is admin-only. 'Followup' is the
+  // canonical stored value for the displayed 'Follow-up'.
+  if (user && user.role !== 'admin' && table === 'crm_leads' && data.status !== undefined) {
+    const LEAD_STATUS_WHITELIST = [
+      'New Lead', 'Calling', 'Ring', 'Busy', 'Interested', 'Followup',
+      'Not Interested', 'Order Booked',
+    ];
+    if (!LEAD_STATUS_WHITELIST.includes(String(data.status))) {
+      return json({ error: 'Invalid lead status for telecaller — only New Lead, Calling, Ring, Busy, Interested, Follow-up, Not Interested, Order Booked are allowed' }, 400);
+    }
+  }
   // ORDER RULES — single source of truth + server-side permissions:
   //  - `status` must be a valid pipeline status (anyone, admin included).
   //  - Telecallers may CREATE an order (status forced to 'Order Booked') but

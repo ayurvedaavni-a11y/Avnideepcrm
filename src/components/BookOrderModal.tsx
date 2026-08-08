@@ -168,6 +168,19 @@ export function BookOrderModal({ leadId, onClose }: Props) {
     setSaving(true);
 
     try {
+      // 🛡️ IDEMPOTENCY GUARD — ONE LEAD = ONE ORDER (root-cause fix for the
+      // duplicate-orders bug). Before this guard, EVERY save created a brand-new
+      // order row with a fresh random orderId — so booking the same lead twice
+      // (double-click, re-open modal, or book + auto-convert) produced duplicate
+      // crm_orders records (e.g. one Out For Delivery + one Order Booked for the
+      // same customer). The existing order is the single lifecycle record;
+      // status advances THROUGH it — never create a second one.
+      const existingOrder = await db.orders.where('leadId').equals(lead.id!).first();
+      if (existingOrder) {
+        toast.error(`An order already exists for this lead (${existingOrder.orderId}) — status: ${existingOrder.status}. No duplicate created.`);
+        return;
+      }
+
       // 1. Update Customer
       await db.customers.update(customer.id!, {
         name: formData.name,

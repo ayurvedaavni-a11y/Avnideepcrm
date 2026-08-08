@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { logCall } from '../db/assignmentEngine';
-import { TELECALLER_STATUSES } from '../db/lifecycle';
+import { TELECALLER_STATUSES, ADMIN_STATUSES, statusLabel } from '../db/lifecycle';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-hot-toast';
 import PhoneCall from 'lucide-react/dist/esm/icons/phone-call'
@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function CallLogModal({ lead, customer, onClose }: Props) {
-  const { profile } = useAuth();
+  const { profile, isAdmin } = useAuth();
   const [status, setStatus] = useState(lead.status);
   const [notes, setNotes] = useState('');
   const [followupDate, setFollowupDate] = useState(lead.followupDate || '');
@@ -103,8 +103,8 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
               onChange={(e) => setStatus(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             >
-              {TELECALLER_STATUSES.map(s => (
-                <option key={s} value={s}>{s}</option>
+              {(isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).map(s => (
+                <option key={s} value={s}>{statusLabel(s)}</option>
               ))}
             </select>
             {status !== lead.status && (

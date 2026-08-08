@@ -984,7 +984,7 @@ function OrderPipelineContent() {
           <Customer360Profile customerId={selectedCustomerId} isOpen onClose={() => setSelectedCustomerId(null)} />
         )}
         {detailOrderId && (
-          <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} onEdit={() => setEditOrderId(detailOrderId)} canInvoice={isAdmin} />
+          <OrderDetailModal orderId={detailOrderId} onClose={() => setDetailOrderId(null)} onEdit={undefined} canInvoice={isAdmin} />
         )}
       </div>
     );

@@ -5,7 +5,7 @@ import { Layout } from './components/Layout';
 import { Toaster } from 'react-hot-toast';
 import { db } from './db/db';
 import { hydrateFromSQLite, attachWriteThroughSync } from './db/sqliteSync';
-import { checkOverdueSpaceLFollowups } from './db/workflow';
+import { checkOverdueSpaceLFollowups, healDuplicateOrders } from './db/workflow';
 import { DateFilterProvider } from './context/DateFilterContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { startOnlineSync, stopOnlineSync } from './db/onlineSync';
@@ -123,6 +123,11 @@ function AppContent() {
         } else {
           console.log('[App] Booted with browser-only persistence (Dexie/IndexedDB)');
         }
+        // ONE-LEAD-ONE-ORDER repair: merge duplicate order rows created by the
+        // pre-fix BookOrderModal (each save minted a fresh random orderId).
+        // Runs before online sync so the merged state + cloud deletions
+        // propagate cleanly to every device.
+        try { await healDuplicateOrders(); } catch (e) { console.warn('[App] healDuplicateOrders:', e); }
         if (!offlineMode && user) {
           await startOnlineSync();
         }

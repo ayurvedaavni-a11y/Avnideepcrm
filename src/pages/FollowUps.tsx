@@ -27,6 +27,7 @@ import { toast } from 'react-hot-toast';
 import { processLeadStatusUpdate } from '../db/workflow';
 import { useDateFilter } from '../context/DateFilterContext';
 import { useAuth } from '../context/AuthContext';
+import { TELECALLER_STATUSES, statusLabel } from '../db/lifecycle';
 
 // ========== Types ==========
 type PipelineStage = 'all' | 'overdue' | 'due-today' | 'scheduled' | 'callback' | 're-engaged' | 'hot' | 'converted' | 'closed';
@@ -696,6 +697,7 @@ function SnoozeModal({ lead, customer, onClose, onSave }: any) {
 
 // ========== Status Change Modal ==========
 function StatusChangeModal({ lead, customer, onClose, onSave }: any) {
+  const { isAdmin } = useAuth();
   const [newStatus, setNewStatus] = useState(lead.status);
   const [notes, setNotes] = useState('');
 
@@ -714,11 +716,17 @@ function StatusChangeModal({ lead, customer, onClose, onSave }: any) {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">New Status *</label>
             <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="Interested">Interested / Re-engaged</option>
-              <option value="Callback">Callback Required</option>
-              <option value="Followup">Follow-up Later</option>
-              <option value="Order Booked">Won - Book Order 🏆</option>
-              <option value="Not Interested">Not Interested / Lost ❌</option>
+              {isAdmin ? (
+                <>
+                  <option value="Interested">Interested / Re-engaged</option>
+                  <option value="Callback">Callback Required</option>
+                  <option value="Followup">Follow-up Later</option>
+                  <option value="Order Booked">Won - Book Order 🏆</option>
+                  <option value="Not Interested">Not Interested / Lost ❌</option>
+                </>
+              ) : (
+                TELECALLER_STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)
+              )}
             </select>
           </div>
           <div>

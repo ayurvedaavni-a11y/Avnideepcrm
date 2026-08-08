@@ -183,11 +183,32 @@ export function getBadgeClasses(status: string): string {
   return `${m.badgeBg} ${m.badgeText}`;
 }
 
-// ===== Telecaller-facing lead statuses (16 required + legacy lead statuses) =====
+// ===== Lead Status Permissions =====
+// TELECALLER_STATUSES = the ONLY statuses a telecaller may set (UI + API).
+// Product spec: New Lead, Calling, Ring, Busy, Interested, Follow-up,
+// Not Interested, Order Booked. 'Followup' is the canonical stored value
+// (used across workflow/types/importParser); the DISPLAYED label is
+// 'Follow-up' via statusLabel(). Everything else (Fake Lead, Duplicate,
+// NDR, fulfilment statuses, …) is admin-only.
 export const TELECALLER_STATUSES: readonly string[] = [
+  'New Lead', 'Calling', 'Ring', 'Busy', 'Interested', 'Followup',
+  'Not Interested', 'Order Booked',
+];
+
+/** Display labels for telecaller statuses (stored value stays canonical). */
+export const TELECALLER_STATUS_LABELS: Record<string, string> = {
+  Followup: 'Follow-up',
+};
+
+/** User-facing label for a status (falls back to the raw value). */
+export function statusLabel(status: string): string {
+  return TELECALLER_STATUS_LABELS[status] || status;
+}
+
+/** Admin status list — the full lead workflow, unaffected by telecaller restrictions. */
+export const ADMIN_STATUSES: readonly string[] = [
   'New Lead', 'Assigned', 'Calling', 'Interested', 'Followup', 'Callback Requested',
   'Not Reachable', 'Busy', 'Order Confirmed', 'Order Cancelled', 'Wrong Number',
   'Duplicate Lead', 'Already Purchased', 'Delivered', 'RTO', 'Closed',
-  // legacy lead statuses kept for backward compatibility
   'Order Booked', 'Not Interested', 'Fake Lead', 'Ring',
 ];

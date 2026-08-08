@@ -734,3 +734,64 @@ export async function migrateLogisticsToOrders(): Promise<number> {
   try { await db.logistics.clear(); } catch {}
   return reconciled;
 }
+
+/**
+ * ONE-LEAD-ONE-ORDER REPAIR (root-cause fix for the duplicate-orders bug).
+ * Pre-fix BookOrderModal minted a NEW order row (fresh random orderId) on
+ * every save, so booking the same lead twice produced duplicate crm_orders
+ * records — e.g. one Out For Delivery + one Order Booked for the same
+ * customer. This merges duplicates per leadId (idempotent, safe on every
+ * app start):
+ *   - keeps the most-advanced order (furthest lifecycle rank; Delivered wins
+ *     over failure terminals; newest updatedAt as tiebreak)
+ *   - repoints its invoices + Order timeline entries to the kept record
+ *   - fixes customer.totalOrders (was over-incremented per duplicate)
+ *   - purges stale sync-queue snapshots and enqueues a cloud DELETE so the
+ *     duplicate is removed from D1 on every device — never just hidden in UI.
+ */
+export async function healDuplicateOrders(): Promise<number> {
+  try {
+    const orders = await db.orders.toArray();
+    const byLead = new Map<number, any[]>();
+    for (const o of orders) {
+      if (o.leadId == null) continue;
+      const arr = byLead.get(o.leadId) || [];
+      arr.push(o);
+      byLead.set(o.leadId, arr);
+    }
+
+    const keepRank = (o: any): number => {
+      if (o.status === 'Delivered') return 100; // revenue terminal outranks failure terminals
+      return ORDER_STATUS_RANK[o.status] ?? 0;
+    };
+
+    let healed = 0;
+    for (const [, arr] of byLead) {
+      if (arr.length < 2) continue;
+      arr.sort((a, b) => keepRank(b) - keepRank(a) || (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      const keep = arr[0];
+      const cust = await db.customers.get(keep.customerId);
+      for (const dup of arr.slice(1)) {
+        if (dup.id == null || dup.id === keep.id) continue;
+        // Repoint records that referenced the duplicate order row.
+        await db.invoices.where('orderId').equals(dup.id).modify({ orderId: keep.id });
+        await db.timelineLogs.where('entityId').equals(dup.id).filter(l => l.entityType === 'Order').modify({ entityId: keep.id });
+        // Fix over-incremented totalOrders (each duplicate booking +1'd it).
+        await db.customers.update(keep.customerId, {
+          totalOrders: Math.max(0, (cust?.totalOrders || 0) - 1),
+          updatedAt: new Date().toISOString(),
+        });
+        // Sync hygiene: drop stale queued snapshots, enqueue the cloud delete.
+        await db.syncQueue.where('table').equals('orders').filter(q => q.localId === dup.id).delete();
+        await db.syncQueue.add({ table: 'orders', action: 'delete', localId: dup.id, attempts: 0, createdAt: new Date().toISOString() });
+        await db.orders.delete(dup.id);
+        healed++;
+        console.warn(`[Heal] Merged duplicate order #${dup.id} (${dup.orderId}) into #${keep.id} (${keep.orderId}) — lead ${keep.leadId}`);
+      }
+    }
+    return healed;
+  } catch (error) {
+    console.error('[Heal] Duplicate-order repair failed:', error);
+    return 0;
+  }
+}
