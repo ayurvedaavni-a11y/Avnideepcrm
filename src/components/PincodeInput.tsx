@@ -12,13 +12,15 @@ interface Props {
   onChange: (updates: { pincode?: string; city?: string; state?: string; district?: string }) => void;
   layout?: 'grid' | 'inline';
   required?: boolean;
+  /** Optional id prefix so multiple instances (e.g. desktop + mobile modal layouts) keep unique DOM ids. */
+  idPrefix?: string;
 }
 
 /**
  * Smart Pincode Input — auto-detects state/city/district when a valid 6-digit pincode is entered.
  * Designed as a drop-in replacement for the existing Pincode/City/State inputs without changing form layout.
  */
-export function PincodeInput({ pincode, city, state, onChange, required = false }: Props) {
+export function PincodeInput({ pincode, city, state, onChange, required = false, idPrefix = '' }: Props) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [detectionInfo, setDetectionInfo] = useState<string>('');
   const lastLookup = useRef<string>('');
@@ -81,13 +83,13 @@ export function PincodeInput({ pincode, city, state, onChange, required = false 
 
   return (
     <div>
-      <label htmlFor="pincode-input" className="block text-sm font-medium text-slate-700 mb-1">
+      <label htmlFor={`${idPrefix}pincode-input`} className="block text-sm font-medium text-slate-700 mb-1">
         Pincode {required && '*'}
       </label>
       <div className="relative">
         <input
-          id="pincode-input"
-          name="pincode-input"
+          id={`${idPrefix}pincode-input`}
+          name={`${idPrefix}pincode-input`}
           type="text"
           maxLength={6}
           required={required}

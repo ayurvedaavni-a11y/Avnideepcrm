@@ -821,40 +821,60 @@ function FollowupModal({ lead, onClose, onSave }: any) {
   const [time, setTime] = useState(lead.followupTime || '');
   const [notes, setNotes] = useState(lead.notes || '');
 
+  const handleSave = () => {
+    if (!date) return toast.error('Date is required');
+    onSave({ followupDate: date, followupTime: time, notes });
+  };
+
+  // Implicit labels (input inside label) — keeps DOM ids unique even though
+  // this body is rendered twice (desktop modal + mobile bottom sheet).
+  const body = (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block text-xs md:text-sm font-medium text-slate-700">
+          <span>Date *</span>
+          <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+        </label>
+        <label className="block text-xs md:text-sm font-medium text-slate-700">
+          <span>Time *</span>
+          <input type="time" required value={time} onChange={e => setTime(e.target.value)} className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+        </label>
+      </div>
+      <label className="block text-xs md:text-sm font-medium text-slate-700">
+        <span>Agent Notes</span>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Customer requested to call after 5 PM..." rows={3} className="mt-1 w-full p-3 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+      </label>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+      {/* ===== DESKTOP MODAL ===== */}
+      <div className="hidden md:flex bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
           <h2 className="text-lg font-bold text-slate-800">Schedule {lead.newStatus}</h2>
-          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-500"/></button>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-500" /></button>
         </div>
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="lead-schedule-date" className="block text-sm font-medium text-slate-700 mb-1">Date *</label>
-              <input id="lead-schedule-date" name="lead-schedule-date" required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label htmlFor="lead-schedule-time" className="block text-sm font-medium text-slate-700 mb-1">Time *</label>
-              <input id="lead-schedule-time" name="lead-schedule-time" required type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Agent Notes</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Customer requested to call after 5 PM..." className="w-full p-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 rows-3" />
-          </div>
+        <div className="flex-1 overflow-y-auto av-scroll-thin p-5">{body}</div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+          <button onClick={onClose} className="px-5 py-2 rounded-lg font-medium text-sm text-slate-600 hover:bg-slate-200 transition">Cancel</button>
+          <button onClick={handleSave} className="px-5 py-2 rounded-lg font-medium text-sm text-white bg-amber-600 hover:bg-amber-700 transition">Confirm Schedule</button>
         </div>
-        <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
-          <button onClick={onClose} className="px-5 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-          <button 
-            onClick={() => {
-              if(!date) return toast.error('Date is required');
-              onSave({ followupDate: date, followupTime: time, notes });
-            }}
-            className="px-5 py-2 rounded-lg font-medium text-white bg-amber-600 hover:bg-amber-700 transition"
-          >
-            Confirm Schedule
-          </button>
+      </div>
+
+      {/* ===== MOBILE BOTTOM SHEET ===== */}
+      <div className="md:hidden bg-white w-full max-h-[85vh] rounded-t-2xl flex flex-col shadow-2xl av-slide-up overflow-hidden">
+        <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+          <div className="w-10 h-1 rounded-full bg-slate-300" />
+        </div>
+        <div className="px-4 pb-3 flex justify-between items-center shrink-0">
+          <h2 className="text-base font-bold text-slate-800">Schedule {lead.newStatus}</h2>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={18} className="text-slate-500" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto av-scroll-thin px-4 pb-4">{body}</div>
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl font-medium text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">Cancel</button>
+          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl font-medium text-sm text-white bg-amber-600 hover:bg-amber-700 transition">Confirm Schedule</button>
         </div>
       </div>
     </div>
@@ -864,47 +884,68 @@ function FollowupModal({ lead, onClose, onSave }: any) {
 function NotInterestedModal({ onClose, onSave }: any) {
   const [reason, setReason] = useState('');
 
+  const handleSave = () => {
+    if (!reason.trim()) return toast.error('Reason is required');
+    onSave(reason);
+  };
+
+  // Implicit label (control inside label) — keeps DOM ids unique even though
+  // this body is rendered twice (desktop modal + mobile bottom sheet).
+  const body = (
+    <div>
+      <label className="block text-xs md:text-sm font-medium text-slate-700">
+        <span>Select / Type Reason *</span>
+        <select
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+        >
+          <option value="">-- Choose Preset Reason --</option>
+          <option value="Too Expensive">Too Expensive</option>
+          <option value="Quality Concern">Quality Concern</option>
+          <option value="Bought Elsewhere">Bought Elsewhere</option>
+          <option value="No Requirement">No Requirement</option>
+          <option value="Other">Other</option>
+        </select>
+        <textarea
+          value={reason}
+          onChange={e => setReason(e.target.value)}
+          placeholder="Or type custom reason..."
+          rows={2}
+          className="w-full p-3 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </label>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+      {/* ===== DESKTOP MODAL ===== */}
+      <div className="hidden md:flex bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex justify-between items-center shrink-0">
           <h2 className="text-lg font-bold text-slate-800">Not Interested Reason</h2>
-          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-500"/></button>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-500" /></button>
         </div>
-        <div className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Select / Type Reason *</label>
-            <select 
-              value={reason} 
-              onChange={e => setReason(e.target.value)}
-              className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 mb-2"
-            >
-              <option value="">-- Choose Preset Reason --</option>
-              <option value="Too Expensive">Too Expensive</option>
-              <option value="Quality Concern">Quality Concern</option>
-              <option value="Bought Elsewhere">Bought Elsewhere</option>
-              <option value="No Requirement">No Requirement</option>
-              <option value="Other">Other</option>
-            </select>
-            <textarea 
-              value={reason} 
-              onChange={e => setReason(e.target.value)}
-              placeholder="Or type custom reason..." 
-              className="w-full p-3 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 rows-2"
-            />
-          </div>
+        <div className="flex-1 overflow-y-auto av-scroll-thin p-5">{body}</div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+          <button onClick={onClose} className="px-5 py-2 rounded-lg font-medium text-sm text-slate-600 hover:bg-slate-200 transition">Cancel</button>
+          <button onClick={handleSave} className="px-5 py-2 rounded-lg font-medium text-sm text-white bg-slate-900 hover:bg-slate-800 transition">Save Reason</button>
         </div>
-        <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
-          <button onClick={onClose} className="px-5 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-          <button 
-            onClick={() => {
-              if(!reason.trim()) return toast.error('Reason is required');
-              onSave(reason);
-            }}
-            className="px-5 py-2 rounded-lg font-medium text-white bg-slate-900 hover:bg-slate-800 transition"
-          >
-            Save Reason
-          </button>
+      </div>
+
+      {/* ===== MOBILE BOTTOM SHEET ===== */}
+      <div className="md:hidden bg-white w-full max-h-[85vh] rounded-t-2xl flex flex-col shadow-2xl av-slide-up overflow-hidden">
+        <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+          <div className="w-10 h-1 rounded-full bg-slate-300" />
+        </div>
+        <div className="px-4 pb-3 flex justify-between items-center shrink-0">
+          <h2 className="text-base font-bold text-slate-800">Not Interested Reason</h2>
+          <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={18} className="text-slate-500" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto av-scroll-thin px-4 pb-4">{body}</div>
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl font-medium text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">Cancel</button>
+          <button onClick={handleSave} className="flex-1 py-2.5 rounded-xl font-medium text-sm text-white bg-slate-900 hover:bg-slate-800 transition">Save Reason</button>
         </div>
       </div>
     </div>
@@ -927,30 +968,55 @@ function BulkAssignModal({ count, telecallers, onClose, onAssign }: {
     setBusy(true);
     try { await onAssign(tc, reassign); } finally { setBusy(false); }
   };
+  // Implicit labels (control inside label) — keeps DOM ids unique even though
+  // this body is rendered twice (desktop modal + mobile bottom sheet).
+  const body = (
+    <div className="space-y-4">
+      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+        <span>Telecaller</span>
+        <select value={tcId} onChange={(e) => setTcId(e.target.value)}
+          className="mt-1.5 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          <option value="">Select telecaller…</option>
+          {telecallers.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
+        </select>
+      </label>
+      <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+        <input type="checkbox" checked={reassign} onChange={(e) => setReassign(e.target.checked)} className="w-4 h-4 accent-blue-600" />
+        <span>Also move already-assigned leads (reassign)</span>
+      </label>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="p-6 border-b border-slate-100">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+      {/* ===== DESKTOP MODAL ===== */}
+      <div className="hidden md:flex bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
+        <div className="p-5 border-b border-slate-100 shrink-0">
           <h2 className="text-lg font-bold text-slate-800">Bulk Assign {count} Lead{count > 1 ? 's' : ''}</h2>
         </div>
-        <div className="p-6 space-y-4">
-          <div>
-            <label htmlFor="lead-assign-telecaller" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Telecaller</label>
-            <select id="lead-assign-telecaller" name="lead-assign-telecaller" value={tcId} onChange={(e) => setTcId(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
-              <option value="">Select telecaller…</option>
-              {telecallers.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
-            </select>
-          </div>
-          <label htmlFor="lead-reassign" className="flex items-center gap-2 text-sm text-slate-600">
-            <input id="lead-reassign" name="lead-reassign" type="checkbox" checked={reassign} onChange={(e) => setReassign(e.target.checked)} className="w-4 h-4 accent-blue-600" />
-            Also move already-assigned leads (reassign)
-          </label>
-        </div>
-        <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
-          <button onClick={onClose} className="px-6 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-200 transition">Cancel</button>
+        <div className="flex-1 overflow-y-auto av-scroll-thin p-5">{body}</div>
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+          <button onClick={onClose} className="px-5 py-2 rounded-lg font-medium text-sm text-slate-600 hover:bg-slate-200 transition">Cancel</button>
           <button onClick={handle} disabled={busy || !tcId}
-            className="px-6 py-2 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 transition disabled:opacity-60">
+            className="px-5 py-2 rounded-lg font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 transition disabled:opacity-60">
+            {busy ? 'Assigning…' : 'Assign'}
+          </button>
+        </div>
+      </div>
+
+      {/* ===== MOBILE BOTTOM SHEET ===== */}
+      <div className="md:hidden bg-white w-full max-h-[85vh] rounded-t-2xl flex flex-col shadow-2xl av-slide-up overflow-hidden">
+        <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+          <div className="w-10 h-1 rounded-full bg-slate-300" />
+        </div>
+        <div className="px-4 pb-3 shrink-0">
+          <h2 className="text-base font-bold text-slate-800">Bulk Assign {count} Lead{count > 1 ? 's' : ''}</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto av-scroll-thin px-4 pb-4">{body}</div>
+        <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl font-medium text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">Cancel</button>
+          <button onClick={handle} disabled={busy || !tcId}
+            className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 transition disabled:opacity-60">
             {busy ? 'Assigning…' : 'Assign'}
           </button>
         </div>
@@ -1070,75 +1136,165 @@ function LeadForm({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // Shared form fields — rendered once per layout (desktop modal + mobile
+  // bottom sheet, only one is visible at a time). All inputs are controlled
+  // by the same formData state; idPrefix keeps DOM ids unique per layout so
+  // label focus works on both breakpoints.
+  const formBody = (idPrefix: string) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      {/* ===== Customer Details ===== */}
+      <div className="space-y-3.5">
+        <h3 className="font-bold text-slate-700 border-b border-slate-100 pb-2 text-sm md:text-base">Customer Details</h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block text-xs md:text-sm font-medium text-slate-700">
+            <span>Mobile Number *</span>
+            <input type="tel" inputMode="numeric" maxLength={10} required value={formData.mobile}
+              onChange={e => { const v = e.target.value.replace(/\D/g, ''); setFormData({...formData, mobile: v}); checkExistingCustomer(v); }}
+              className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+          </label>
+          <label className="block text-xs md:text-sm font-medium text-slate-700">
+            <span>Alternate Number</span>
+            <input type="tel" inputMode="numeric" maxLength={10} value={formData.alternateNumber}
+              onChange={e => setFormData({...formData, alternateNumber: e.target.value.replace(/\D/g, '')})}
+              className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+          </label>
+        </div>
+
+        <label className="block text-xs md:text-sm font-medium text-slate-700">
+          <span>Full Name *</span>
+          <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
+            className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+        </label>
+
+        <label className="block text-xs md:text-sm font-medium text-slate-700">
+          <span>Full Address</span>
+          <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} rows={2}
+            className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <PincodeInput idPrefix={idPrefix} pincode={formData.pincode} city={formData.city} state={formData.state}
+            onChange={(updates: any) => setFormData(prev => ({...prev, ...updates}))} />
+          <label className="block text-xs md:text-sm font-medium text-slate-700">
+            <span>City</span>
+            <input type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})}
+              className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+          </label>
+        </div>
+
+        <label className="block text-xs md:text-sm font-medium text-slate-700">
+          <span>State</span>
+          <input type="text" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})}
+            placeholder="Auto-filled from pincode"
+            className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+        </label>
+      </div>
+
+      {/* ===== Lead Details ===== */}
+      <div className="space-y-3.5">
+        <h3 className="font-bold text-slate-700 border-b border-slate-100 pb-2 text-sm md:text-base">Lead Details</h3>
+
+        <label className="block text-xs md:text-sm font-medium text-slate-700">
+          <span>Product Interested *</span>
+          <input type="text" required value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})}
+            className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block text-xs md:text-sm font-medium text-slate-700">
+            <span>Expected Amount *</span>
+            <input type="number" required value={formData.expectedAmount} onChange={e => setFormData({...formData, expectedAmount: e.target.value})}
+              className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+          </label>
+          <label className="block text-xs md:text-sm font-medium text-slate-700">
+            <span>Status</span>
+            <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}
+              className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+              {(isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).map(st => <option key={st} value={st}>{statusLabel(st)}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <label className="block text-xs md:text-sm font-medium text-slate-700">
+          <span>Source</span>
+          <select value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})}
+            className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            {['Facebook', 'Instagram', 'WhatsApp', 'Website', 'Referral', 'Cold Call', 'Other'].map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block text-xs md:text-sm font-medium text-slate-700">
+            <span>Followup Date</span>
+            <input type="date" value={formData.followupDate} onChange={e => setFormData({...formData, followupDate: e.target.value})}
+              className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+          </label>
+          <label className="block text-xs md:text-sm font-medium text-slate-700">
+            <span>Followup Time</span>
+            <input type="time" value={formData.followupTime} onChange={e => setFormData({...formData, followupTime: e.target.value})}
+              className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+          </label>
+        </div>
+
+        <label className="block text-xs md:text-sm font-medium text-slate-700">
+          <span>Notes</span>
+          <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} rows={2}
+            className="mt-1 w-full p-2 text-sm border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+        </label>
+      </div>
+    </div>
+  );
+
   return (
     <>
-    {duplicateModal}
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">Add New Lead</h2>
-            {isFakeWarning && (
-              <p className="text-red-600 text-sm font-bold flex items-center gap-1 mt-1 bg-red-50 p-2 rounded border border-red-200 animate-pulse">
-                <AlertTriangle size={16} /> WARNING: Customer marked fake before!
-              </p>
-            )}
+      {duplicateModal}
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+        {/* ===== DESKTOP MODAL ===== */}
+        <div className="hidden md:flex bg-white rounded-2xl w-full max-w-[640px] max-h-[90vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center shrink-0">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">Add New Lead</h2>
+              {isFakeWarning && (
+                <p className="text-red-600 text-xs font-bold flex items-center gap-1 mt-1 bg-red-50 p-1.5 rounded border border-red-200 animate-pulse">
+                  <AlertTriangle size={13} /> WARNING: Customer marked fake before!
+                </p>
+              )}
+            </div>
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-500" /></button>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><X size={24} className="text-slate-500"/></button>
-        </div>
-        <div className="p-6 overflow-y-auto">
-          <form id="lead-form" onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h3 className="font-bold text-slate-700 border-b pb-2">Customer Details</h3>
-                <div><label htmlFor="lead-form-mobile" className="block text-sm font-medium text-slate-700 mb-1">Mobile Number *</label>
-                  <input id="lead-form-mobile" name="lead-form-mobile" required type="text" maxLength={10} value={formData.mobile}
-                    onChange={e => { setFormData({...formData, mobile: e.target.value}); checkExistingCustomer(e.target.value); }}
-                    className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-                <div><label htmlFor="lead-form-name" className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
-                  <input id="lead-form-name" name="lead-form-name" required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Full Address</label>
-                  <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 rows-2" /></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <PincodeInput pincode={formData.pincode} city={formData.city} state={formData.state}
-                    onChange={(updates: any) => setFormData(prev => ({...prev, ...updates}))} />
-                  <div><label htmlFor="lead-form-city" className="block text-sm font-medium text-slate-700 mb-1">City</label>
-                    <input id="lead-form-city" name="lead-form-city" type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                </div>
-                <div><label htmlFor="lead-form-state" className="block text-sm font-medium text-slate-700 mb-1">State</label>
-                  <input id="lead-form-state" name="lead-form-state" type="text" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Auto-filled from pincode" /></div>
-              </div>
-              <div className="space-y-4">
-                <h3 className="font-bold text-slate-700 border-b pb-2">Lead Details</h3>
-                <div><label htmlFor="lead-form-product" className="block text-sm font-medium text-slate-700 mb-1">Product Interested *</label>
-                  <input id="lead-form-product" name="lead-form-product" required type="text" value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label htmlFor="lead-form-amount" className="block text-sm font-medium text-slate-700 mb-1">Expected Amount *</label>
-                    <input id="lead-form-amount" name="lead-form-amount" required type="number" value={formData.expectedAmount} onChange={e => setFormData({...formData, expectedAmount: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
-                    <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
-                      {(isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).map(st => <option key={st} value={st}>{statusLabel(st)}</option>)}
-                    </select></div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label htmlFor="lead-form-followup-date" className="block text-sm font-medium text-slate-700 mb-1">Followup Date</label>
-                    <input id="lead-form-followup-date" name="lead-form-followup-date" type="date" value={formData.followupDate} onChange={e => setFormData({...formData, followupDate: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                  <div><label htmlFor="lead-form-followup-time" className="block text-sm font-medium text-slate-700 mb-1">Followup Time</label>
-                    <input id="lead-form-followup-time" name="lead-form-followup-time" type="time" value={formData.followupTime} onChange={e => setFormData({...formData, followupTime: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                </div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
-                  <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 rows-2" /></div>
-              </div>
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto av-scroll-thin px-6 py-5">{formBody('lead-form-')}</div>
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+              <button type="button" onClick={onClose} className="px-5 py-2 rounded-lg font-medium text-sm text-slate-600 hover:bg-slate-200 transition">Cancel</button>
+              <button type="submit" className="px-5 py-2 rounded-lg font-medium text-sm text-white bg-blue-600 hover:bg-blue-700 transition">Save Lead</button>
             </div>
           </form>
         </div>
-        <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
-          <button onClick={onClose} type="button" className="px-6 py-2 rounded-lg font-medium text-slate-600 hover:bg-slate-200 transition">Cancel</button>
-          <button form="lead-form" type="submit" className="px-6 py-2 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 transition">Save Lead</button>
+
+        {/* ===== MOBILE BOTTOM SHEET ===== */}
+        <div className="md:hidden bg-white w-full max-h-[92vh] rounded-t-2xl flex flex-col shadow-2xl av-slide-up overflow-hidden">
+          <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+            <div className="w-10 h-1 rounded-full bg-slate-300" />
+          </div>
+          <div className="px-4 pb-3 flex justify-between items-center shrink-0">
+            <h2 className="text-base font-bold text-slate-800">Add New Lead</h2>
+            <button onClick={onClose} className="p-1.5 hover:bg-slate-100 rounded-full"><X size={18} className="text-slate-500" /></button>
+          </div>
+          {isFakeWarning && (
+            <p className="mx-4 mb-2 text-red-600 text-xs font-bold flex items-center gap-1 bg-red-50 p-2 rounded border border-red-200 animate-pulse">
+              <AlertTriangle size={13} /> WARNING: Customer marked fake before!
+            </p>
+          )}
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 overflow-y-auto av-scroll-thin px-4 pb-4">{formBody('mobile-form-')}</div>
+            <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+              <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl font-medium text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">Cancel</button>
+              <button type="submit" className="flex-1 py-2.5 rounded-xl font-medium text-sm text-white bg-blue-600 hover:bg-blue-700 transition">Save Lead</button>
+            </div>
+          </form>
         </div>
       </div>
-    </div>
     </>
   );
 }
