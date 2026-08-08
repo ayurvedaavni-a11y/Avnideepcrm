@@ -95,7 +95,7 @@ export function PwaUpdater() {
   useEffect(() => {
     if (__APP_VERSION__) {
       document.documentElement.setAttribute('data-app-version', __APP_VERSION__);
-      console.info('[APP] build version:', __APP_VERSION__);
+      console.info('[APP] app version:', __APP_VERSION__);
     }
   }, []);
 
