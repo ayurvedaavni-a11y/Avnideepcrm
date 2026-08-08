@@ -1,5 +1,5 @@
 // secfix-verify.mjs — verify delete admin-only + telecaller field restrictions
-const B = 'http://127.0.0.1:8787';
+const B = process.env.API_BASE || 'http://127.0.0.1:8787';
 const results = [];
 function log(name, ok, detail) {
   results.push({ name, ok });

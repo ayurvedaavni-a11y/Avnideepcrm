@@ -310,7 +310,7 @@ export function BookOrderModal({ leadId, onClose }: Props) {
             
             <div className="grid grid-cols-1 gap-4">
               <Input label="Full Name" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Mobile</label>
                   <input
@@ -326,7 +326,7 @@ export function BookOrderModal({ leadId, onClose }: Props) {
               </div>
               <Input label="Full Address" value={formData.address} onChange={v => setFormData({...formData, address: v})} multiline />
               <Input label="Landmark" value={formData.landmark} onChange={v => setFormData({...formData, landmark: v})} />
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 <Input label="Pincode" value={formData.pincode} onChange={v => setFormData({...formData, pincode: v})} maxLength={6} />
                 <Input label="City" value={formData.city} onChange={v => setFormData({...formData, city: v})} />
                 <Input label="State" value={formData.state} onChange={v => setFormData({...formData, state: v})} />
@@ -383,13 +383,13 @@ export function BookOrderModal({ leadId, onClose }: Props) {
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <Input label="Qty" type="number" value={formData.quantity} onChange={v => setFormData({...formData, quantity: Number(v)})} />
                 <Input label="Price" type="number" value={formData.sellingPrice} onChange={v => setFormData({...formData, sellingPrice: Number(v)})} />
                 <Input label="Discount" type="number" value={formData.discount} onChange={v => setFormData({...formData, discount: Number(v)})} />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Input label="Delivery" type="number" value={formData.deliveryCharge} onChange={v => setFormData({...formData, deliveryCharge: Number(v)})} />
                 <Input label="COD Charge" type="number" value={formData.codCharge} onChange={v => setFormData({...formData, codCharge: Number(v)})} />
               </div>

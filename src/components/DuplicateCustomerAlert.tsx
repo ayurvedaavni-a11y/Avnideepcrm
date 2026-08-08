@@ -81,7 +81,7 @@ export function DuplicateCustomerAlert({ customer, onMerge, onContinue, onCancel
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-4 gap-2 mt-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-4">
             <StatTile icon={Package} label="Total Orders" value={customer.totalOrders || 0} color="text-blue-600 bg-blue-50" />
             <StatTile icon={CheckCircle} label="Delivered" value={customer.delivered || 0} color="text-emerald-600 bg-emerald-50" />
             <StatTile icon={XCircle} label="RTO" value={customer.rto || 0} color="text-red-600 bg-red-50" />

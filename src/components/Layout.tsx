@@ -43,7 +43,7 @@ export function Layout() {
         )}
         <main className="flex-1 overflow-y-auto bg-slate-50 relative z-0">
           <ErrorBoundary>
-            <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24">
+            <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
               <Outlet />
             </div>
           </ErrorBoundary>

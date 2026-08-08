@@ -237,7 +237,7 @@ const NDRCaseCard = memo(function NDRCaseCard({ ndr, order, customer, onAction, 
       </div>
 
       <div className="bg-slate-50 rounded-lg p-4 border border-slate-100 pl-3">
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex justify-between flex-wrap gap-2 items-center mb-3">
           <div className="text-xs font-bold text-slate-500 flex items-center gap-1.5 uppercase tracking-wider">
             <Clock size={14} /> Attempt History Logs ({ndr.attemptCount})
           </div>
@@ -368,7 +368,7 @@ function NDRActionModal({ ndrCase, onClose, onSave }: any) {
         </div>
         
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">NDR Status *</label>
               <select value={status} onChange={(e) => handleStatusChange(e.target.value)}

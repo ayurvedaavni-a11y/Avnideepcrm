@@ -305,7 +305,7 @@ export function BackupCenter() {
           <div className="space-y-3 mb-6">
             <div className="bg-slate-50 rounded-lg p-4">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Included Tables</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {EXPORT_TABLES.map(t => {
                   const count = (counts as any)[t.key] || 0;
                   return (

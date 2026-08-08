@@ -224,7 +224,7 @@ export function Team() {
           <div className="p-8 text-center text-slate-400 text-sm">Abhi koi member nahi hai. Upar se pehla account banayein.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-slate-400 border-b border-slate-100">
                   <th className="px-6 py-3">Name</th>
@@ -282,7 +282,7 @@ export function Team() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -330,7 +330,7 @@ export function Team() {
       {pinResetMember && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+            <div className="p-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-center">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <KeyRound className="text-amber-500" size={18} /> PIN Change
               </h2>

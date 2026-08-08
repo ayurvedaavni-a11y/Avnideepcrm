@@ -368,7 +368,7 @@ function InvoicePreviewModal({ invoice, onClose }: { invoice: Invoice; onClose: 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+        <div className="p-4 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-center">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Invoice Preview — {invoice.invoiceNumber}</h2>
             <p className="text-xs text-slate-500">{invoice.customerName} • ₹{invoice.total.toFixed(2)}</p>

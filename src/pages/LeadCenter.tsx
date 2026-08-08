@@ -486,7 +486,7 @@ export function LeadCenter() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between flex-wrap gap-2 items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Lead Center</h1>
           <p className="text-slate-500 text-sm">Manage, filter and convert pipeline opportunities.</p>
@@ -589,7 +589,7 @@ export function LeadCenter() {
       {/* Leads Table — Virtual Scrolling */}
       <VirtualTable
         data={paginatedLeads}
-        height={520}
+        height={'min(520px, calc(100dvh - 320px))'}
         estimateSize={72}
         emptyState={
           <div className="flex items-center justify-center py-12 text-slate-500">
@@ -759,7 +759,7 @@ function FollowupModal({ lead, onClose, onSave }: any) {
           <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-500"/></button>
         </div>
         <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Date *</label>
               <input required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
@@ -1017,7 +1017,7 @@ function LeadForm({ onClose }: { onClose: () => void }) {
         </div>
         <div className="p-6 overflow-y-auto">
           <form id="lead-form" onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <h3 className="font-bold text-slate-700 border-b pb-2">Customer Details</h3>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number *</label>
@@ -1029,7 +1029,7 @@ function LeadForm({ onClose }: { onClose: () => void }) {
                   <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Full Address</label>
                   <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 rows-2" /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <PincodeInput pincode={formData.pincode} city={formData.city} state={formData.state}
                     onChange={(updates: any) => setFormData(prev => ({...prev, ...updates}))} />
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">City</label>
@@ -1042,7 +1042,7 @@ function LeadForm({ onClose }: { onClose: () => void }) {
                 <h3 className="font-bold text-slate-700 border-b pb-2">Lead Details</h3>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Product Interested *</label>
                   <input required type="text" value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Expected Amount *</label>
                     <input required type="number" value={formData.expectedAmount} onChange={e => setFormData({...formData, expectedAmount: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
@@ -1050,7 +1050,7 @@ function LeadForm({ onClose }: { onClose: () => void }) {
                       {TELECALLER_STATUSES.map(st => <option key={st}>{st}</option>)}
                     </select></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Followup Date</label>
                     <input type="date" value={formData.followupDate} onChange={e => setFormData({...formData, followupDate: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Followup Time</label>

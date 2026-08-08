@@ -426,6 +426,93 @@ function normalizeRow(table: string, row: Record<string, any>): Record<string, a
   return out;
 }
 
+// ===========================================================================
+// SERVER-SIDE AUTO-INVOICE (bugfix): when an order row first appears in the
+// cloud (created by admin OR telecaller — the local app blocks non-admin
+// invoice generation), the worker creates the crm_invoices row itself.
+//   - Idempotent: NOT EXISTS(order_id) guard + unique invoice_number
+//     derived from the unique order id → re-pushes never duplicate.
+//   - Access stays ADMIN-ONLY: crm_invoices is not in SYNC_TABLE_NAMES and
+//     canAccessTable() rejects every non-admin table access.
+//   - Respects the optional crm_settings.auto_invoice = 'false' override.
+// ===========================================================================
+// ===========================================================================
+// LEAD → ORDER AUTO-LINK (pipeline consistency): when an order row exists in
+// the cloud with a lead_id, the linked lead MUST leave the active pipeline.
+// The app does this in its own conversion flow, but any client that pushes an
+// order directly (or a missed app step) left the lead in 'Interested'/'New'
+// forever — the lead stayed visible in the active pipeline while an order
+// existed. This hook idempotently:
+//   1. sets crm_leads.status = 'Order Booked' (only if not already)
+//   2. appends one timeline entry (Lead → Order Booked) with the actor.
+// Safe to re-run: status update is guarded by `status != 'Order Booked'`,
+// timeline insert only happens when the status actually changed.
+// ===========================================================================
+async function maybeLinkLeadToOrder(env: Env, table: string, cloudRowId: number): Promise<void> {
+  if (table !== 'crm_orders' || !cloudRowId || cloudRowId <= 0) return;
+  try {
+    const order = await env.DB.prepare(
+      'SELECT lead_id, booked_by_name, order_id, product FROM crm_orders WHERE id = ?'
+    ).bind(cloudRowId).first<{ lead_id: number; booked_by_name: string | null; order_id: string; product: string | null }>();
+    const leadId = Number(order?.lead_id || 0);
+    if (!order || !leadId || leadId <= 0) return;
+    const lead = await env.DB.prepare(
+      'SELECT id, status, customer_id, customer_name FROM crm_leads WHERE id = ?'
+    ).bind(leadId).first<{ id: number; status: string; customer_id: number; customer_name: string }>();
+    if (!lead || lead.status === 'Order Booked') return;
+    const now = new Date().toISOString();
+    await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE crm_leads SET status = 'Order Booked', updated_at = ? WHERE id = ? AND status != 'Order Booked'"
+      ).bind(now, leadId),
+      env.DB.prepare(
+        `INSERT INTO crm_timeline_logs (customer_id, entity_type, entity_id, action, status_from, status_to, notes, agent_name, created_at)
+         VALUES (?, 'Lead', ?, 'Order Booked', ?, 'Order Booked', ?, ?, ?)`
+      ).bind(
+        lead.customer_id ?? 0, leadId, lead.status,
+        `Order ${order.order_id} booked for ${order.product || 'product'} (server auto-link).`,
+        order.booked_by_name || 'Telecaller', now,
+      ),
+    ]);
+    console.log('[lead-link] order', cloudRowId, '→ lead', leadId, 'converted');
+  } catch (e: any) {
+    // Never fail the order write because of the link step.
+    console.error('[lead-link] skipped for order', cloudRowId, '—', String(e?.message || e).slice(0, 160));
+  }
+}
+
+async function maybeAutoCreateInvoice(env: Env, table: string, cloudRowId: number): Promise<void> {
+  if (table !== 'crm_orders' || !cloudRowId || cloudRowId <= 0) return;
+  try {
+    const auto = await env.DB.prepare("SELECT value FROM crm_settings WHERE key = 'auto_invoice'").first<{ value: string }>();
+    if (auto && String(auto.value).trim().toLowerCase() === 'false') return;
+    const now = new Date().toISOString();
+    const ins = await env.DB.prepare(
+      `INSERT INTO crm_invoices
+         (invoice_number, order_id, order_number, customer_id, customer_name, customer_mobile,
+          product, qty, rate, discount, subtotal, delivery_charge, cod_charge, total,
+          payment_status, status, invoice_date, source, created_at, updated_at)
+       SELECT
+         'INV-' || strftime('%Y','now') || '-' || printf('%06d', o.id),
+         o.id, o.order_id, o.customer_id, c.name, c.mobile, o.product,
+         COALESCE(o.qty, 1), COALESCE(o.cod_amount, 0), COALESCE(o.discount, 0),
+         COALESCE(o.cod_amount, 0) * COALESCE(o.qty, 1),
+         COALESCE(o.delivery_charge, 0), COALESCE(o.cod_charge, 0),
+         COALESCE(o.cod_amount, 0) * COALESCE(o.qty, 1) - COALESCE(o.discount, 0)
+           + COALESCE(o.delivery_charge, 0) + COALESCE(o.cod_charge, 0),
+         'Pending', 'Issued', COALESCE(o.order_date, ?), 'auto', ?, ?
+       FROM crm_orders o LEFT JOIN crm_customers c ON c.id = o.customer_id
+       WHERE o.id = ? AND NOT EXISTS (SELECT 1 FROM crm_invoices i WHERE i.order_id = o.id)`
+    ).bind(now, now, now, cloudRowId).run();
+    if (Number((ins.meta as any)?.changes ?? 0) > 0) {
+      console.log('[auto-invoice] created for order', cloudRowId);
+    }
+  } catch (e: any) {
+    // Never fail the order push because of an invoice problem.
+    console.error('[auto-invoice] skipped for order', cloudRowId, '—', String(e?.message || e).slice(0, 200));
+  }
+}
+
 async function handlePush(env: Env, request: Request, user: Record<string, any> | null): Promise<Response> {
   const denied = requireAuth(user);
   if (denied) return denied;
@@ -614,14 +701,28 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
         .run();
       // changes() is 0 both when the row is missing AND when the UPDATE set
       // identical values (idempotent re-push) — check existence either way.
-      if (Number((upd.meta as any)?.changes ?? 0) > 0) return json({ id: data.id });
+      if (Number((upd.meta as any)?.changes ?? 0) > 0) {
+        await maybeAutoCreateInvoice(env, table, Number(data.id) || 0);
+      await maybeLinkLeadToOrder(env, table, Number(data.id) || 0);
+        await maybeLinkLeadToOrder(env, table, Number(data.id) || 0);
+        return json({ id: data.id });
+      }
     }
     const exists = await env.DB.prepare(`SELECT 1 FROM ${table} WHERE id = ?`).bind(data.id).first();
-    if (exists) return json({ id: data.id });
+    if (exists) {
+      // Backfill: pre-fix orders that never got an invoice get one on the
+      // next push (idempotent — NOT EXISTS guard inside the helper).
+      await maybeAutoCreateInvoice(env, table, Number(data.id) || 0);
+      await maybeLinkLeadToOrder(env, table, Number(data.id) || 0);
+      return json({ id: data.id });
+    }
     const ins = await env.DB.prepare(
       `INSERT INTO ${table} (${names.join(', ')}) VALUES (${placeholders}) RETURNING id`
     ).bind(...values).first();
-    return json({ id: (ins as any)?.id ?? null });
+    const insId = Number((ins as any)?.id ?? 0);
+    await maybeAutoCreateInvoice(env, table, insId);
+    await maybeLinkLeadToOrder(env, table, insId);
+    return json({ id: insId });
   }
 
   let sql: string;
@@ -635,7 +736,10 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
     sql = `INSERT INTO ${table} (${names.join(', ')}) VALUES (${placeholders}) RETURNING id`;
   }
   const res = await env.DB.prepare(sql).bind(...values).first();
-  return json({ id: (res as any)?.id ?? null });
+  const cloudId = Number((res as any)?.id ?? 0);
+  await maybeAutoCreateInvoice(env, table, cloudId);
+  await maybeLinkLeadToOrder(env, table, cloudId);
+  return json({ id: cloudId });
 }
 
 async function handleDelete(env: Env, request: Request, user: Record<string, any> | null): Promise<Response> {
@@ -667,6 +771,11 @@ async function handlePull(env: Env, _request: Request, user: Record<string, any>
   if (denied) return denied;
   const requested = url.searchParams.get('tables');
   const requestedNames = requested ? requested.split(',') : [...SYNC_TABLE_NAMES];
+  // Explicit request for a table this role cannot access → hard 403
+  // (defense in depth; the frontend only ever requests accessible tables).
+  if (requested && requestedNames.some((n) => TABLES[n] && !canAccessTable(user, n))) {
+    return json({ error: 'Forbidden' }, 403);
+  }
   const names = requestedNames.filter((n) => canAccessTable(user, n));
   // OPTIONAL incremental params — when absent the response is the exact same
   // full pull as before (old clients are unaffected). `since` limits rows to
@@ -733,6 +842,22 @@ async function handleCount(env: Env, _request: Request, user: Record<string, any
 }
 
 // ---------------------------------------------------------------------
+// admin invoices (bugfix): read-only listing of server-side auto-invoices.
+// Admin-only — crm_invoices stays out of SYNC_TABLE_NAMES, so telecallers
+// can neither list, push nor pull invoice rows (canAccessTable rejects).
+// ---------------------------------------------------------------------
+async function handleInvoicesList(env: Env, _request: Request, user: Record<string, any> | null, url: URL): Promise<Response> {
+  const denied = requireAdmin(user);
+  if (denied) return denied;
+  const orderId = Number(url.searchParams.get('order_id') || 0) || 0;
+  const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') || 100) || 100));
+  const res = orderId > 0
+    ? await env.DB.prepare('SELECT * FROM crm_invoices WHERE order_id = ? ORDER BY id DESC LIMIT ?').bind(orderId, limit).all()
+    : await env.DB.prepare('SELECT * FROM crm_invoices ORDER BY id DESC LIMIT ?').bind(limit).all();
+  return json({ invoices: res.results, count: res.results.length });
+}
+
+// ---------------------------------------------------------------------
 // intake (landing page)
 // ---------------------------------------------------------------------
 async function handleIntake(env: Env, request: Request): Promise<Response> {
@@ -746,9 +871,15 @@ async function handleIntake(env: Env, request: Request): Promise<Response> {
   if (!/^\d{10}$/.test(mobile)) return json({ error: 'Invalid mobile number' }, 400);
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
-  await env.DB.prepare(
+  // DATABASE-LEVEL DEDUP (migration 0005 creates a UNIQUE index on
+  // leads(mobile)): the same mobile submitted twice conflicts at the DB
+  // layer — no pre-check race window, no duplicate row can ever be written.
+  // Idempotent response: the caller receives the existing row id so the
+  // landing page never double-counts an enquiry.
+  const res = await env.DB.prepare(
     `INSERT INTO leads (id, name, mobile, address, city, state, pincode, product, amount, payment_mode, source, sync_status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
+     ON CONFLICT(mobile) DO NOTHING`
   )
     .bind(
       id,
@@ -765,7 +896,13 @@ async function handleIntake(env: Env, request: Request): Promise<Response> {
       now
     )
     .run();
-  return json({ ok: true, id });
+  const inserted = Number((res.meta as any)?.changes ?? 0);
+  if (inserted > 0) return json({ ok: true, id, duplicate: false });
+  // Duplicate mobile — return the existing lead (idempotent), do NOT create a row.
+  const existing = await env.DB.prepare(
+    'SELECT id, created_at FROM leads WHERE mobile = ? ORDER BY created_at ASC LIMIT 1'
+  ).bind(mobile).first<{ id: string; created_at: string }>();
+  return json({ ok: true, id: String(existing?.id ?? id), duplicate: true });
 }
 
 // ---------------------------------------------------------------------
@@ -946,22 +1083,53 @@ async function handleLeadsAssign(env: Env, request: Request, user: Record<string
   const now = new Date().toISOString();
   // Without `reassign`, already-assigned leads are skipped (no double work,
   // no accidental overwrite of another telecaller's leads).
-  const whereExtra = reassign
-    ? ''
-    : " AND (assigned_to IS NULL OR assigned_to = '' OR assigned_to = '0')";
-  // D1 caps SQL variables per statement (~100) — chunk the IN() list so
-  // bulk-assigns of thousands of leads never hit "too many SQL variables".
-  const CHUNK = 90;
+  const CHUNK = 90; // D1 caps SQL variables per statement (~100)
   let changed = 0;
+  const timelineStmts: D1PreparedStatement[] = [];
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
     const placeholders = chunk.map(() => '?').join(', ');
-    const res = await env.DB.prepare(
-      `UPDATE crm_leads SET assigned_to = ?, assigned_agent = ?, updated_at = ? WHERE id IN (${placeholders})${whereExtra}`
-    )
-      .bind(assignToId, name, now, ...chunk)
-      .run();
-    changed += Number((res.meta as any)?.changes ?? 0);
+    // Read current state of the candidate leads first: we need customer_id,
+    // prior owner and prior assignment state for the timeline, and to decide
+    // which rows are actually eligible (skip already-assigned unless reassign).
+    const cur = await env.DB.prepare(
+      `SELECT id, customer_id, assigned_to, assigned_agent FROM crm_leads WHERE id IN (${placeholders})`
+    ).bind(...chunk).all<{ id: number; customer_id: number; assigned_to: string | null; assigned_agent: string | null }>();
+    const eligible = reassign
+      ? cur.results
+      : cur.results.filter((r) => !r.assigned_to || r.assigned_to === '' || r.assigned_to === '0');
+    if (eligible.length) {
+      const eIds = eligible.map((r) => r.id);
+      const ePh = eIds.map(() => '?').join(', ');
+      const upd = await env.DB.prepare(
+        `UPDATE crm_leads SET assigned_to = ?, assigned_agent = ?, updated_at = ? WHERE id IN (${ePh})`
+      ).bind(assignToId, name, now, ...eIds).run();
+      changed += Number((upd.meta as any)?.changes ?? 0);
+    }
+    // ASSIGNMENT HISTORY (bugfix): every assign / reassign / unassign is
+    // appended to crm_timeline_logs so the customer timeline shows the full
+    // ownership trail on ALL devices (cloud path was missing this — only the
+    // local Dexie path logged it before).
+    for (const r of eligible) {
+      const wasAssigned = !!r.assigned_to && r.assigned_to !== '' && r.assigned_to !== '0';
+      const isUnassign = !assignToId || assignToId === '' || assignToId === '0';
+      const action = isUnassign ? 'Assignment Removed' : wasAssigned ? 'Lead Reassigned' : 'Lead Assigned';
+      const notes = isUnassign
+        ? `Removed from ${r.assigned_agent || 'unassigned'}. Lead is back in the pool.`
+        : wasAssigned
+          ? `Reassigned from ${r.assigned_agent || 'unassigned'} to ${name}.`
+          : `Lead assigned to ${name}.`;
+      timelineStmts.push(
+        env.DB.prepare(
+          `INSERT INTO crm_timeline_logs (customer_id, entity_type, entity_id, action, status_from, status_to, notes, agent_name, created_at)
+           VALUES (?, 'Lead', ?, ?, ?, ?, ?, ?, ?)`
+        ).bind(r.customer_id ?? 0, r.id, action, String(r.assigned_to ?? ''), isUnassign ? '' : assignToId, notes, name || 'Admin', now),
+      );
+    }
+  }
+  // Flush timeline entries in batches (D1 batch cap ~100 statements).
+  for (let s = 0; s < timelineStmts.length; s += 90) {
+    await env.DB.batch(timelineStmts.slice(s, s + 90));
   }
 
   // Notify the assignee (in-app; surfaced by the NotificationBell).
@@ -974,7 +1142,7 @@ async function handleLeadsAssign(env: Env, request: Request, user: Record<string
       .bind(title, message, now)
       .run();
   }
-  return json({ ok: true, assigned: changed, total: ids.length });
+  return json({ ok: true, assigned: changed, skipped: Math.max(0, ids.length - changed), total: ids.length });
 }
 
 async function handleIntakePending(env: Env, _request: Request, user: Record<string, any> | null): Promise<Response> {
@@ -1050,6 +1218,7 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
       if (path === '/api/sync/delete' && request.method === 'POST') return handleDelete(env, request, user);
       if (path === '/api/sync/pull' && request.method === 'GET') return handlePull(env, request, user, url);
       if (path === '/api/sync/count' && request.method === 'GET') return handleCount(env, request, user, url);
+      if (path === '/api/invoices' && request.method === 'GET') return handleInvoicesList(env, request, user, url);
       if (path === '/api/orders/status' && request.method === 'GET') return handleOrderStatus(env, request, user, url);
 
       // ---- lead assignment ----

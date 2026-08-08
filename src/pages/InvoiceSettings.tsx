@@ -60,7 +60,7 @@ export function InvoiceSettings() {
       {tab === 'company' && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
           <h2 className="text-lg font-bold text-slate-800">Company Profile</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Company Name" value={company.name} onChange={(v) => setCompany({ ...company, name: v })} />
             <Field label="Tagline" value={company.tagline} onChange={(v) => setCompany({ ...company, tagline: v })} />
             <Field label="GSTIN" value={company.gstin} onChange={(v) => setCompany({ ...company, gstin: v })} />
@@ -75,7 +75,7 @@ export function InvoiceSettings() {
           </div>
           <div className="border-t pt-4">
             <h3 className="font-bold text-slate-800 mb-3">Bank Details</h3>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="Bank Name" value={company.bankName} onChange={(v) => setCompany({ ...company, bankName: v })} />
               <Field label="Account No" value={company.bankAccount} onChange={(v) => setCompany({ ...company, bankAccount: v })} />
               <Field label="IFSC Code" value={company.bankIFSC} onChange={(v) => setCompany({ ...company, bankIFSC: v })} />
@@ -99,12 +99,12 @@ export function InvoiceSettings() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4">
           <h2 className="text-lg font-bold text-slate-800">GST & Pricing Rules</h2>
           <ToggleField label="GST Enabled" checked={gst.gstEnabled} onChange={(v) => setGst({ ...gst, gstEnabled: v })} hint="Disable to generate invoices without tax" />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="GST Percentage (%)" type="number" value={gst.gstRate} onChange={(v) => setGst({ ...gst, gstRate: Number(v) || 0 })} />
             <SelectField label="GST Mode" value={gst.gstMode} options={['exclusive', 'inclusive']} onChange={(v) => setGst({ ...gst, gstMode: v as any })} />
           </div>
           <ToggleField label="Apply GST Before Discount" checked={gst.gstBeforeDiscount} onChange={(v) => setGst({ ...gst, gstBeforeDiscount: v })} />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Delivery Charge (₹)" type="number" value={gst.deliveryCharge} onChange={(v) => setGst({ ...gst, deliveryCharge: Number(v) || 0 })} />
             <Field label="COD Charge (₹)" type="number" value={gst.codCharge} onChange={(v) => setGst({ ...gst, codCharge: Number(v) || 0 })} />
           </div>

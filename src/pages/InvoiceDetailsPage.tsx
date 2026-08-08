@@ -299,7 +299,7 @@ export function InvoiceDetailsPage() {
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
             <h2 className="font-bold text-slate-800 flex items-center gap-2"><FileText size={18} /> Customer Details</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Full Name" value={customerForm.name} onChange={(v) => setCustomerForm({ ...customerForm, name: v })} />
               <Field label="Mobile" value={customerForm.mobile} onChange={(v) => setCustomerForm({ ...customerForm, mobile: v })} />
               <Field label="Address" value={customerForm.address} onChange={(v) => setCustomerForm({ ...customerForm, address: v })} multiline className="col-span-2" />
@@ -312,7 +312,7 @@ export function InvoiceDetailsPage() {
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
             <h2 className="font-bold text-slate-800">Invoice Details</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Invoice Number" value={invoiceForm.invoiceNumber} onChange={(v) => setInvoiceForm({ ...invoiceForm, invoiceNumber: v })} />
               <Field label="Invoice Date" value={invoiceForm.invoiceDate} onChange={(v) => setInvoiceForm({ ...invoiceForm, invoiceDate: v })} />
               <SelectField label="Payment Status" value={invoiceForm.paymentStatus} options={['Pending','Paid','Partial Paid','COD Pending','Cancelled','Refunded']} onChange={(v) => setInvoiceForm({ ...invoiceForm, paymentStatus: v })} />
@@ -321,7 +321,7 @@ export function InvoiceDetailsPage() {
           </div>
 
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between flex-wrap gap-2 items-center">
               <h2 className="font-bold text-slate-800">Products</h2>
               <button onClick={() => { setItems(prev => [...prev, { product: '', qty: 1, rate: 0, discount: 0, gstRate: 5, availableStock: 0 }]); setProductSearch(prev => [...prev, '']); }} className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 flex items-center gap-1"><Plus size={12} /> Add Product</button>
             </div>

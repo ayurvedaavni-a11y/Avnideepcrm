@@ -147,7 +147,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
               <CalendarDays size={14} /> Next Follow-up
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <input type="date" value={followupDate} onChange={(e) => setFollowupDate(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
@@ -164,7 +164,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
               <Bell size={14} /> Reminder
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input type="date" value={reminderDate} onChange={(e) => setReminderDate(e.target.value)}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
               <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}

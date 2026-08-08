@@ -255,7 +255,7 @@ export function FollowUps() {
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* ===== Header ===== */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between flex-wrap gap-2 items-start">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
             <Zap className="text-amber-500" size={28} />
@@ -647,7 +647,7 @@ function SnoozeModal({ lead, customer, onClose, onSave }: any) {
             <p className="font-bold text-slate-800">{customer.name} - {customer.mobile}</p>
             <p className="text-sm text-slate-600">Product: {lead.product} | ₹{lead.expectedAmount}</p>
           </div>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">New Follow-up Date *</label>
               <input required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-500" />
@@ -815,7 +815,7 @@ function FollowupHistoryModal({ lead, customer, followups, onClose, onViewTimeli
 
         <div className="flex-1 overflow-y-auto p-6">
           {/* Stats bar */}
-          <div className="grid grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
               <p className="text-xs text-slate-500">Total Follow-ups</p>
               <p className="text-xl font-bold text-slate-800">{followups.length}</p>
@@ -836,7 +836,7 @@ function FollowupHistoryModal({ lead, customer, followups, onClose, onViewTimeli
 
           {/* Lead info */}
           <div className="bg-gradient-to-r from-slate-50 to-white p-4 rounded-xl border border-slate-200 mb-6">
-            <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
               <div>
                 <p className="text-xs text-slate-400 font-medium">Current Status</p>
                 <p className="font-bold text-slate-800">{lead.status}</p>

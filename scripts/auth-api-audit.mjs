@@ -1,7 +1,7 @@
 // auth-api-audit.mjs — API-level auth/security audit against LOCAL worker (production source)
 // Tests: admin login, telecaller create/login, wrong-role rejection, PIN change,
 // block → 401 auto-logout, delete → 401, member guards, mobile change.
-const B = 'http://127.0.0.1:8787';
+const B = process.env.API_BASE || 'http://127.0.0.1:8787';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const results = [];

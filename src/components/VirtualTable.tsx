@@ -38,8 +38,8 @@ interface VirtualTableProps<T> {
   estimateSize?: number;
   /** Additional class on outer wrapper */
   className?: string;
-  /** Container max-height (default: 600) */
-  height?: number;
+  /** Container max-height (default: 600) — number px or CSS string */
+  height?: number | string;
   /** Override key extraction */
   getKey?: (item: T, index: number) => string | number;
   /** Empty state content */

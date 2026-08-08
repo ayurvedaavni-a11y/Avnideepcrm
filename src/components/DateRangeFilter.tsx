@@ -84,7 +84,7 @@ export function GlobalDateFilter() {
           {/* Quick Preset Grid */}
           <div className="p-4 border-b border-slate-100">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Quick Filters</div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {QUICK_PRESETS.map((preset) => {
                 const isActive = state.preset === preset;
                 return (

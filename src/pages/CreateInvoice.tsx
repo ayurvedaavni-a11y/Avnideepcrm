@@ -205,7 +205,7 @@ export function CreateInvoice() {
 
       {/* Items */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between flex-wrap gap-2 items-center mb-4">
           <h2 className="font-bold text-slate-800">Line Items</h2>
           <button onClick={addItemRow} className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded flex items-center gap-1 hover:bg-slate-800">
             <Plus size={12} /> Add Item

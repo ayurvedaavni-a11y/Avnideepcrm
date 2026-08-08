@@ -90,7 +90,7 @@ function AnalyticsContent() {
 function StatBox({ title, value, subtitle, isGood, icon: Icon }: any) {
   return (
     <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-      <div className="flex justify-between items-start mb-4">
+      <div className="flex justify-between flex-wrap gap-2 items-start mb-4">
         <div className="text-sm font-medium text-slate-500">{title}</div>
         <div className={`p-2 rounded-lg ${isGood ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
           <Icon size={16} />

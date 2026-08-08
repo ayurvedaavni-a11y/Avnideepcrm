@@ -88,7 +88,7 @@ export function CustomerTimelineModal({ customerId, isOpen, onClose }: Props) {
           </button>
         </div>
 
-        <div className="p-6 bg-slate-50 grid grid-cols-4 gap-4 border-b border-slate-100">
+        <div className="p-6 bg-slate-50 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-slate-100">
           <div className="bg-white p-3 rounded-lg border border-slate-200">
             <p className="text-xs text-slate-500">Delivered</p>
             <p className="text-lg font-bold text-emerald-600">{customer.delivered}</p>
@@ -135,7 +135,7 @@ export function CustomerTimelineModal({ customerId, isOpen, onClose }: Props) {
                     Cancel
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Update Status (Optional)</label>
                     <select

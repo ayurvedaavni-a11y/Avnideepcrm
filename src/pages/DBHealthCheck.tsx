@@ -120,7 +120,7 @@ export function DBHealthCheck() {
 
       {/* Status Cards */}
       {auditResult && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div className={`p-5 rounded-xl border shadow-sm ${auditResult.verificationStatus === 'CLEAN' ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
             <div className="flex items-center gap-2 mb-2">
               {auditResult.verificationStatus === 'CLEAN' 
@@ -169,7 +169,7 @@ export function DBHealthCheck() {
               </button>
             </div>
           </div>
-          <div className="p-6 grid grid-cols-3 gap-6">
+          <div className="p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
             {/* Before */}
             <div className="bg-red-50 rounded-xl p-5 border border-red-200">
               <h3 className="font-bold text-red-700 text-sm mb-3">Before Cleanup</h3>
@@ -263,7 +263,7 @@ export function DBHealthCheck() {
       {/* Report text area */}
       {reportText && (
         <div className="bg-slate-900 rounded-xl p-5">
-          <div className="flex justify-between items-center mb-3">
+          <div className="flex justify-between flex-wrap gap-2 items-center mb-3">
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Raw Report</h3>
             <button onClick={() => setReportText('')} className="text-slate-500 hover:text-white transition">
               <X size={16} />

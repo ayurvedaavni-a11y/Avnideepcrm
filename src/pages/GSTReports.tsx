@@ -199,7 +199,7 @@ export function GSTReports() {
       {/* Report Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-100 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                 {reportType === 'sales' && <>
@@ -280,7 +280,7 @@ export function GSTReports() {
                 </tr>
               )}
             </tfoot>
-          </table>
+          </table></div>
         </div>
       </div>
     </div>

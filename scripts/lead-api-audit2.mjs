@@ -1,5 +1,5 @@
 // lead-api-audit2.mjs — lead assignment/ownership/isolation API audit (local worker)
-const B = 'http://127.0.0.1:8787';
+const B = process.env.API_BASE || 'http://127.0.0.1:8787';
 const results = [];
 function log(name, ok, detail) {
   results.push({ name, ok });
@@ -63,7 +63,10 @@ async function main() {
   const mobs1 = leads1.map((l) => l.mobile);
   const mobs2 = leads2.map((l) => l.mobile);
   log('6. TC1 pulls ONLY own leads (empty after reassign)', mobs1.length === 0 || mobs1.every((m) => m === leadMobiles[0] && false), 'TC1 sees: [' + mobs1.join(',') + ']');
-  log('7. TC2 pulls ONLY own leads (3-4)', mobs2.length >= 3 && mobs2.every((m) => leadMobiles.slice(1).includes(m)), 'TC2 sees: [' + mobs2.join(',') + ']');
+  // NOTE: after test #5 explicitly REASSIGNED lead#1 to TC2, TC2 legitimately
+  // owns ALL 4 leads (lead#1, #2, #3, #4). Expecting only 3 was a test-logic
+  // bug (documented in the audit) — the app behavior is correct.
+  log('7. TC2 pulls ONLY own leads (4 after reassign)', mobs2.length === 4 && mobs2.every((m) => leadMobiles.includes(m)), 'TC2 sees: [' + mobs2.join(',') + ']');
 
   const r5 = await api('POST', '/api/leads/assign', { leadIds: [leadIds[3]], assignToId: String(tc1.id) }, tc1Token);
   log('8. TC cannot use assign API → 403', r5.status === 403, r5.status);
@@ -72,11 +75,16 @@ async function main() {
   log('9. TC cannot delete lead → 403 (admin-only fix)', r6.status === 403, r6.status + ' ' + JSON.stringify(r6.json).slice(0, 50));
 
   // duplicate prevention: intake same mobile twice
-  const intakeKey = 'dev-intake-7a1b2c3d4e5f6a7b';
+  // Intake key comes from the environment (CI/regression) or falls back to the
+  // local dev key from worker/.dev.vars — a hardcoded production key can never
+  // be used in local tests.
+  const intakeKey = process.env.INTAKE_KEY || 'local-intake-key';
   const mob2 = '97' + UNIQ + '501';
-  const i1 = await fetch(B + '/api/intake', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Intake-Key': intakeKey }, body: JSON.stringify({ mobile: mob2, name: 'First Enquiry', source: 'audit' }) }).then((r) => r.json().catch(() => ({})));
-  const i2 = await fetch(B + '/api/intake', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Intake-Key': intakeKey }, body: JSON.stringify({ mobile: mob2, name: 'Second Enquiry', source: 'audit' }) }).then((r) => r.json().catch(() => ({})));
-  log('10. Duplicate intake → same customer (no dup row)', (i1?.customerId || i1?.id) && i1?.customerId === i2?.customerId, JSON.stringify({ a: i1, b: i2 }).slice(0, 140));
+  const intake = (mob, name) => fetch(B + '/api/intake', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Intake-Key': intakeKey }, body: JSON.stringify({ mobile: mob, name, source: 'audit' }) }).then((r) => r.json().catch(() => ({})));
+  const i1 = await intake(mob2, 'First Enquiry');
+  const i2 = await intake(mob2, 'Second Enquiry');
+  // Idempotency: second call returns the SAME lead id (no duplicate row).
+  log('10. Duplicate intake → same lead id (no dup row)', !!i1?.id && i1.id === i2.id && i2?.duplicate === true, JSON.stringify({ a: i1, b: i2 }).slice(0, 140));
 
   console.log('\n=== SUMMARY ===');
   const passed = results.filter((x) => x.ok).length;

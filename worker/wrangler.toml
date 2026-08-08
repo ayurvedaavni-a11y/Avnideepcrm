@@ -9,10 +9,14 @@
 #   4. wrangler secret put AUTH_SECRET
 #      wrangler secret put BOOTSTRAP_KEY
 #      wrangler secret put INTAKE_KEY
+# Local dev secrets live in worker/.dev.vars (gitignored) — never commit.
 # =====================================================================
 name = "avnideep-crm-api"
 main = "src/index.ts"
-compatibility_date = "2026-07-01"
+# 2026-05-01: works on the current local wrangler runtime AND production
+# (was 2026-07-01, which the local runtime rejected — worker could not
+# start locally; see audit BUG 4).
+compatibility_date = "2026-05-01"
 account_id = "b47dcac070b4d641981d3e6d9b300294"
 
 [observability]

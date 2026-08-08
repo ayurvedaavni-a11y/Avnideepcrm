@@ -835,7 +835,8 @@ function OrderPipelineContent() {
     [isAdmin, allLeads]
   );
 
-  const handleViewTimeline = useCallback((customerId: number) => setSelectedCustomerId(customerId), []);
+  const handleViewTimeline = useCallback((customerId: number) => setSelectedCustomerId(customerId), []);
+
   const handleViewDetail = useCallback((orderId: number) => setDetailOrderId(orderId), []);
 
   // ===== Business logic — unchanged =====
@@ -1037,7 +1038,7 @@ function OrderPipelineContent() {
           <StatCard label="Delivered Today" value={stats.deliveredToday} icon={Check} iconClass="bg-emerald-50 text-emerald-600" />
           <StatCard label="Cancelled" value={stats.cancelled} icon={XCircle} iconClass="bg-red-50 text-red-600" />
         </div>
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           <StatCard label="Pipeline COD Value" value={stats.codPipeline} icon={Wallet} iconClass="bg-blue-50 text-blue-600" format="compact" />
           <StatCard label="Revenue (Delivered)" value={stats.revenue} icon={TrendingUp} iconClass="bg-emerald-50 text-emerald-600" format="compact" />
           <StatCard label="Average Order Value" value={stats.aov} icon={Zap} iconClass="bg-purple-50 text-purple-600" format="currency" />
@@ -1248,7 +1249,7 @@ function OrderDetailModal({ orderId, onClose, onEdit, canInvoice = true }: { ord
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4" role="dialog" aria-modal="true" aria-label="Order details">
       <div className="bg-white w-full sm:max-w-2xl max-h-[92vh] sm:rounded-3xl rounded-t-3xl flex flex-col shadow-2xl av-slide-up sm:av-zoom-in">
         {/* Header */}
-        <div className="p-6 pb-5 border-b border-slate-100 flex justify-between items-start bg-gradient-to-br from-slate-50 to-white rounded-t-3xl">
+        <div className="p-6 pb-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-start bg-gradient-to-br from-slate-50 to-white rounded-t-3xl">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-xl font-black text-slate-900">{customer.name}</h2>

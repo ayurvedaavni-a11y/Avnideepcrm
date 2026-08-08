@@ -239,7 +239,7 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
                   <EditField label="Alt Mobile" value={form.altMobile} onChange={v => setForm(f => ({ ...f, altMobile: v }))} />
                   <EditField label="Address" value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} multiline />
                   <EditField label="Landmark" value={form.landmark} onChange={v => setForm(f => ({ ...f, landmark: v }))} />
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <EditField label="City" value={form.city} onChange={v => setForm(f => ({ ...f, city: v }))} />
                     <EditField label="State" value={form.state} onChange={v => setForm(f => ({ ...f, state: v }))} />
                   </div>
@@ -270,7 +270,7 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
               )}
 
               {/* Stats Grid (always visible) */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {stats.map((s, i) => (
                   <div key={i} className="bg-white rounded-xl border border-slate-200 p-3">
                     <div className="flex items-center justify-between mb-1">
@@ -422,7 +422,7 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
                 <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
                   <EditField label="Address" value={form.address} onChange={v => setForm(f => ({ ...f, address: v }))} multiline />
                   <EditField label="Landmark" value={form.landmark} onChange={v => setForm(f => ({ ...f, landmark: v }))} />
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <EditField label="City" value={form.city} onChange={v => setForm(f => ({ ...f, city: v }))} />
                     <EditField label="State" value={form.state} onChange={v => setForm(f => ({ ...f, state: v }))} />
                   </div>
@@ -548,4 +548,4 @@ function EditField({ label, value, onChange, multiline = false, readOnly = false
       )}
     </div>
   );
-}
+}

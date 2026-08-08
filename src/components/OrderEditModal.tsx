@@ -120,7 +120,7 @@ export function OrderEditModal({ orderId, onClose }: Props) {
           {/* Customer Section */}
           <div>
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Customer Details</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Full Name" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
               <Field label="City" value={form.city} onChange={v => setForm(f => ({ ...f, city: v }))} />
               <Field label="State" value={form.state} onChange={v => setForm(f => ({ ...f, state: v }))} />
@@ -137,7 +137,7 @@ export function OrderEditModal({ orderId, onClose }: Props) {
           {/* Order Section */}
           <div>
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Order Details</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Product" value={form.product} onChange={v => setForm(f => ({ ...f, product: v }))} />
               <Field label="Qty" type="number" value={form.qty} onChange={v => setForm(f => ({ ...f, qty: Number(v) }))} />
               <Field label="COD Amount" type="number" value={form.codAmount} onChange={v => setForm(f => ({ ...f, codAmount: Number(v) }))} />

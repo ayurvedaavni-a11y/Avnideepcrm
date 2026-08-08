@@ -217,7 +217,7 @@ async function main() {
 
   // 8. Sync verification — data pushed to worker
   const counts = await evalJS(`Promise.all([
-    fetch('http://127.0.0.1:8787/api/auth/me', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('crm_auth_token') || '') } }).then(r => r.status)
+    fetch('http://127.0.0.1:8788/api/auth/me', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('crm_auth_token') || '') } }).then(r => r.status)
   ])`, sid);
   log('10. Worker /auth/me → 200', counts?.[0] === 200, 'status=' + counts?.[0]);
 

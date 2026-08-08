@@ -103,7 +103,7 @@ export function CourierAnalytics() {
           <h3 className="font-bold text-slate-800 text-sm">Courier-wise Performance</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                 <th className="p-3">Courier</th>
@@ -136,7 +136,7 @@ export function CourierAnalytics() {
                 <tr><td colSpan={6} className="p-8 text-center text-slate-500">No courier data yet.</td></tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </div>
@@ -146,7 +146,7 @@ export function CourierAnalytics() {
 function MetricCard({ title, value, icon: Icon, color }: any) {
   return (
     <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-      <div className="flex justify-between items-start mb-3">
+      <div className="flex justify-between flex-wrap gap-2 items-start mb-3">
         <div className="text-xs font-bold text-slate-500 uppercase">{title}</div>
         <div className={`p-2 rounded-lg ${color}`}><Icon size={16} /></div>
       </div>

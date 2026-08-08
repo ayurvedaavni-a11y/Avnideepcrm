@@ -74,7 +74,7 @@ export function Payments() {
           <h2 className="font-bold text-slate-800 text-sm">Outstanding Invoices ({pendingInvoices.length})</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                 <th className="p-4">Invoice #</th>
@@ -111,7 +111,7 @@ export function Payments() {
                 <tr><td colSpan={8} className="p-12 text-center text-slate-500">No outstanding invoices 🎉</td></tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
 
@@ -121,7 +121,7 @@ export function Payments() {
           <h2 className="font-bold text-slate-800 text-sm">Recent Payments ({dateFilteredPayments.length})</h2>
         </div>
         <div className="overflow-x-auto max-h-96 overflow-y-auto">
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm">
             <thead className="sticky top-0">
               <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                 <th className="p-3">Date</th>
@@ -148,7 +148,7 @@ export function Payments() {
                 <tr><td colSpan={5} className="p-8 text-center text-slate-500 text-sm">No payments recorded yet for this date range.</td></tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
 
@@ -205,7 +205,7 @@ function PaymentModal({ invoice, onClose }: { invoice: Invoice; onClose: () => v
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+        <div className="p-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-center">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Record Payment</h2>
             <p className="text-xs text-slate-500">{invoice.invoiceNumber} — {invoice.customerName}</p>

@@ -212,7 +212,7 @@ async function main() {
 
   // 10. Worker session token (correct key)
   const me = await evalJS(
-    `fetch('http://127.0.0.1:8787/api/auth/me', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('crm_auth_token') || '') } }).then(r => r.status).catch(() => -1)`, sid
+    `fetch('http://127.0.0.1:8788/api/auth/me', { headers: { Authorization: 'Bearer ' + (localStorage.getItem('crm_auth_token') || '') } }).then(r => r.status).catch(() => -1)`, sid
   );
   log('10. Worker /auth/me with session token → 200', me === 200, 'status=' + me);
 

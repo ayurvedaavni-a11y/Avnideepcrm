@@ -7,13 +7,13 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "migrate:local": "wrangler d1 execute avnideep-crm --local --file=./migrations/0001_init.sql",
-    "migrate:remote": "wrangler d1 execute avnideep-crm --remote --file=./migrations/0001_init.sql",
+    "migrate:local": "sh ./scripts/migrate-local.sh",
+    "migrate:remote": "sh ./scripts/migrate-remote.sh",
     "db:create": "wrangler d1 create avnideep-crm"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260801.1",
+    "@cloudflare/workers-types": "^4.20260426.1",
     "typescript": "^5.5.4",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.19.0"
   }
 }

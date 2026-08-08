@@ -162,7 +162,7 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <a 
                 href={`tel:${activeReminder.customer.mobile}`}
                 onClick={() => setActiveReminder(null)}

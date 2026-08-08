@@ -96,7 +96,7 @@ export function Inventory() {
       {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="bg-slate-100 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                 <th className="p-4">SKU / Product</th>
@@ -152,7 +152,7 @@ export function Inventory() {
                 <tr><td colSpan={7} className="p-12 text-center text-slate-500"><Package size={32} className="mx-auto text-slate-300 mb-2" />No products yet. Click "Add Product" to start.</td></tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
 
@@ -215,26 +215,26 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in zoom-in-95 duration-200">
-        <div className="p-5 border-b border-slate-100 flex justify-between items-center">
+        <div className="p-5 border-b border-slate-100 flex justify-between flex-wrap gap-2 items-center">
           <h2 className="text-lg font-bold text-slate-800">{product ? 'Edit Product' : 'Add New Product'}</h2>
           <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} className="text-slate-500" /></button>
         </div>
         <div className="p-6 overflow-y-auto space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="SKU *" value={form.sku} onChange={(v) => setForm({ ...form, sku: v })} />
             <FormField label="Product Name *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} />
           </div>
           <FormField label="Description" value={form.description || ''} onChange={(v) => setForm({ ...form, description: v })} multiline />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <FormField label="Category" value={form.category || ''} onChange={(v) => setForm({ ...form, category: v })} />
             <FormField label="HSN Code" value={form.hsnCode} onChange={(v) => setForm({ ...form, hsnCode: v })} />
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <FormField label="Purchase Price" type="number" value={form.purchasePrice} onChange={(v) => setForm({ ...form, purchasePrice: Number(v) || 0 })} />
             <FormField label="Selling Price" type="number" value={form.sellingPrice} onChange={(v) => setForm({ ...form, sellingPrice: Number(v) || 0 })} />
             <FormField label="GST %" type="number" value={form.gstRate} onChange={(v) => setForm({ ...form, gstRate: Number(v) || 0 })} />
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             <FormField label="Stock Quantity" type="number" value={form.stockQty} onChange={(v) => setForm({ ...form, stockQty: Number(v) || 0 })} />
             <FormField label="Low Stock Alert" type="number" value={form.lowStockAlert} onChange={(v) => setForm({ ...form, lowStockAlert: Number(v) || 0 })} />
             <FormField label="Unit" value={form.unit || 'PCS'} onChange={(v) => setForm({ ...form, unit: v })} />

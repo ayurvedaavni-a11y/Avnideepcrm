@@ -1,6 +1,6 @@
 // iso-check.mjs — deterministic: two telecallers with SAME full_name must not
 // see each other's leads (name-collision isolation after the fix).
-const B = 'http://127.0.0.1:8787';
+const B = process.env.API_BASE || 'http://127.0.0.1:8787';
 const results = [];
 function log(name, ok, detail) {
   results.push({ name, ok });

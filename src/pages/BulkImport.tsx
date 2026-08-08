@@ -466,7 +466,7 @@ export function BulkImport() {
       {preview.length > 0 && !importing && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 overflow-x-auto">
           <p className="text-sm font-bold text-slate-700 mb-3">Preview — first 10 rows of {fileData.length}</p>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
             <thead><tr className="bg-slate-100 text-slate-600 text-xs uppercase font-bold">{Object.keys(preview[0]).map((k, i) => <th key={i} className="p-2">{k}</th>)}</tr></thead>
             <tbody>
               {preview.map((row, i) => (
@@ -477,7 +477,7 @@ export function BulkImport() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         </div>
       )}
 
