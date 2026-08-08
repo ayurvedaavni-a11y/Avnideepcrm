@@ -349,10 +349,18 @@ export function FollowUps() {
               <PipelineSection
                 key={stageKey}
                 tab={tab}
-                items={items}                    onViewTimeline={(cid: number) => setSelectedCustomerId(cid)}
+                items={items}
+                    // CONTRACT FIX (production crash 'u.forEach is not a function'):
+                    // PipelineSection calls onViewHistory(item.lead, item.customer,
+                    // item.followups) — THREE args. This handler previously declared
+                    // only (lead, followups), so followups received item.customer
+                    // (an OBJECT) instead of the array, and FollowupHistoryModal
+                    // crashed on followups.forEach. Signature now matches the
+                    // caller contract exactly.
+                    onViewTimeline={(cid: number) => setSelectedCustomerId(cid)}
                     onStatusChange={handleStatusChange}
                     onSnooze={(lead: any) => setSnoozeModal({ lead, customer: customerMap.get(lead.customerId) })}
-                    onViewHistory={(lead: any, followups: SpaceLFollowup[]) => setShowFollowupHistory({ lead, customer: customerMap.get(lead.customerId), followups })}
+                    onViewHistory={(lead: any, customer: any, followups: SpaceLFollowup[]) => setShowFollowupHistory({ lead, customer: customer ?? customerMap.get(lead.customerId), followups })}
                     onStatusModal={(lead: any) => setStatusChangeModal({ lead, customer: customerMap.get(lead.customerId) })}
               />
             );
@@ -774,12 +782,24 @@ function FollowupHistoryModal({ lead, customer, followups, onClose, onViewTimeli
     [customer.id]
   ) || [];
 
+  // BOUNDARY NORMALIZATION (defense-in-depth): the component must NEVER crash
+  // on a malformed followups shape, even if a future caller or legacy record
+  // passes an object / null / undefined instead of an array. The ROOT fix is
+  // the caller contract (PipelineSection now passes lead, customer, followups
+  // in the right order) — this guard only converts a bad shape to [] and logs
+  // it so the mismatch is visible instead of silent. It can never hide the
+  // real data: a valid array passes through untouched.
+  const followupList = Array.isArray(followups) ? followups : (() => {
+    console.warn('[Followups] followups prop is not an array — expected SpaceLFollowup[]; got', typeof followups, followups);
+    return [];
+  })();
+
   // Combine SpaceL followups with timeline logs
   const timelineEvents = useMemo(() => {
     const events: { date: string; type: string; description: string; actor: string; icon: any; color: string }[] = [];
 
     // Add SpaceL followups
-    followups.forEach((f: any) => {
+    followupList.forEach((f: any) => {
       events.push({
         date: f.createdAt,
         type: f.action,
@@ -817,7 +837,7 @@ function FollowupHistoryModal({ lead, customer, followups, onClose, onViewTimeli
     // Sort by date descending
     events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return events;
-  }, [followups, allTimelineLogs]);
+  }, [followupList, allTimelineLogs]);
 
   return (
         <ModalPortal>
@@ -849,19 +869,19 @@ function FollowupHistoryModal({ lead, customer, followups, onClose, onViewTimeli
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
               <p className="text-xs text-slate-500">Total Follow-ups</p>
-              <p className="text-xl font-bold text-slate-800">{followups.length}</p>
+              <p className="text-xl font-bold text-slate-800">{followupList.length}</p>
             </div>
             <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 text-center">
               <p className="text-xs text-blue-600 font-medium">Calls</p>
-              <p className="text-xl font-bold text-blue-700">{followups.filter((f: any) => f.action === 'Called').length}</p>
+              <p className="text-xl font-bold text-blue-700">{followupList.filter((f: any) => f.action === 'Called').length}</p>
             </div>
             <div className="bg-green-50 p-3 rounded-xl border border-green-200 text-center">
               <p className="text-xs text-green-600 font-medium">WhatsApp</p>
-              <p className="text-xl font-bold text-green-700">{followups.filter((f: any) => f.action === 'WhatsApp').length}</p>
+              <p className="text-xl font-bold text-green-700">{followupList.filter((f: any) => f.action === 'WhatsApp').length}</p>
             </div>
             <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 text-center">
               <p className="text-xs text-amber-600 font-medium">Snoozed</p>
-              <p className="text-xl font-bold text-amber-700">{followups.filter((f: any) => f.action === 'Snoozed').length}</p>
+              <p className="text-xl font-bold text-amber-700">{followupList.filter((f: any) => f.action === 'Snoozed').length}</p>
             </div>
           </div>
 
