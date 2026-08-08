@@ -198,5 +198,3 @@ export function PwaUpdater() {
     </div>
   );
 }
-
-// BUILD-C update-flow verification marker

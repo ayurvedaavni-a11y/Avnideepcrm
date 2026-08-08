@@ -11,7 +11,10 @@ const __dirname = path.dirname(__filename);
 // Unique build identifier (short git SHA). Injected as __APP_VERSION__ and
 // exposed via <html data-app-version> so deployments can be verified and the
 // PWA update flow can be tested (A → B → C) without guessing.
+// Priority: Vercel build env (CI has no git) → git rev-parse → date fallback.
 const BUILD_VERSION = (() => {
+  const fromEnv = process.env.VERCEL_GIT_COMMIT_SHA;
+  if (fromEnv && fromEnv.length >= 7) return fromEnv.slice(0, 7);
   try {
     return execSync("git rev-parse --short HEAD", {
       stdio: ["ignore", "pipe", "ignore"],
@@ -19,7 +22,7 @@ const BUILD_VERSION = (() => {
       .toString()
       .trim();
   } catch {
-    return "dev";
+    return new Date().toISOString().replace(/\D/g, "").slice(0, 10);
   }
 })();
 
