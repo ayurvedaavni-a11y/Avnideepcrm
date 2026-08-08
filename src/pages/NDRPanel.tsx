@@ -370,8 +370,8 @@ function NDRActionModal({ ndrCase, onClose, onSave }: any) {
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">NDR Status *</label>
-              <select value={status} onChange={(e) => handleStatusChange(e.target.value)}
+              <label htmlFor="ndr-status" className="block text-sm font-medium text-slate-700 mb-1">NDR Status *</label>
+              <select id="ndr-status" name="ndr-status" value={status} onChange={(e) => handleStatusChange(e.target.value)}
                 className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 font-medium">
                 <option value="Reattempt Scheduled">Reattempt Scheduled</option>
                 <option value="Out For Reattempt">Out For Reattempt</option>
@@ -385,8 +385,8 @@ function NDRActionModal({ ndrCase, onClose, onSave }: any) {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Reason *</label>
-              <select value={reason} onChange={(e) => setReason(e.target.value)}
+              <label htmlFor="ndr-reason" className="block text-sm font-medium text-slate-700 mb-1">Reason *</label>
+              <select id="ndr-reason" name="ndr-reason" value={reason} onChange={(e) => setReason(e.target.value)}
                 className={`w-full p-2.5 border rounded-lg outline-none focus:ring-2 font-medium ${
                   isResolved ? 'border-emerald-200 bg-emerald-50/30 focus:ring-emerald-500' : 'border-slate-300 focus:ring-blue-500'
                 }`}>
@@ -395,16 +395,16 @@ function NDRActionModal({ ndrCase, onClose, onSave }: any) {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Customer Reply / Statement *</label>
-            <input type="text" required value={customerResponse}
+            <label htmlFor="ndr-response" className="block text-sm font-medium text-slate-700 mb-1">Customer Reply / Statement *</label>
+            <input id="ndr-response" name="ndr-response" type="text" required value={customerResponse}
               onChange={(e) => setCustomerResponse(e.target.value)}
               placeholder="e.g., Requested delivery for tomorrow morning"
               className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           {status === 'Reattempt Scheduled' && (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Next Retry Date *</label>
-              <input type="date" required value={retryDate}
+              <label htmlFor="ndr-retry-date" className="block text-sm font-medium text-slate-700 mb-1">Next Retry Date *</label>
+              <input id="ndr-retry-date" name="ndr-retry-date" type="date" required value={retryDate}
                 onChange={(e) => setRetryDate(e.target.value)}
                 className="w-full p-2.5 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
             </div>

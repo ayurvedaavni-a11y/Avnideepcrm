@@ -174,11 +174,11 @@ function Field({ label, value, onChange, type = 'text', multiline = false }: {
 }) {
   return (
     <div>
-      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">{label}</label>
+      <label htmlFor={`ordedit-${label}`} className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">{label}</label>
       {multiline ? (
-        <textarea className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} value={value} onChange={e => onChange(e.target.value)} />
+        <textarea id={`ordedit-${label}`} name={`ordedit-${label}`} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" rows={2} value={value} onChange={e => onChange(e.target.value)} />
       ) : (
-        <input className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        <input id={`ordedit-${label}`} name={`ordedit-${label}`} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
           type={type} value={value} onChange={e => onChange(e.target.value)} />
       )}
     </div>

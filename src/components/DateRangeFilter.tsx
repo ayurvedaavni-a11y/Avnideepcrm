@@ -119,8 +119,10 @@ export function GlobalDateFilter() {
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Custom Date Range</div>
             <div className="flex items-center gap-3">
               <div className="flex-1">
-                <label className="block text-[10px] font-medium text-slate-500 mb-1">From Date</label>
+                <label htmlFor="filter-custom-from" className="block text-[10px] font-medium text-slate-500 mb-1">From Date</label>
                 <input
+                  id="filter-custom-from"
+                  name="filter-custom-from"
                   type="date"
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
@@ -132,8 +134,10 @@ export function GlobalDateFilter() {
                 <span className="text-slate-400 text-sm">→</span>
               </div>
               <div className="flex-1">
-                <label className="block text-[10px] font-medium text-slate-500 mb-1">To Date</label>
+                <label htmlFor="filter-custom-to" className="block text-[10px] font-medium text-slate-500 mb-1">To Date</label>
                 <input
+                  id="filter-custom-to"
+                  name="filter-custom-to"
                   type="date"
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}

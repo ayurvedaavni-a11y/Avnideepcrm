@@ -301,6 +301,9 @@ export function Customers() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
             <input
+              id="customer-search"
+              name="customer-search"
+              aria-label="Search customers"
               type="text"
               placeholder="Search by name or mobile..."
               value={searchTerm}

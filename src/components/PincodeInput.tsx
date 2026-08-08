@@ -81,11 +81,13 @@ export function PincodeInput({ pincode, city, state, onChange, required = false 
 
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">
+      <label htmlFor="pincode-input" className="block text-sm font-medium text-slate-700 mb-1">
         Pincode {required && '*'}
       </label>
       <div className="relative">
         <input
+          id="pincode-input"
+          name="pincode-input"
           type="text"
           maxLength={6}
           required={required}

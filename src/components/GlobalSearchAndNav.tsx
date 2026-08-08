@@ -202,8 +202,11 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
+              id="global-search"
+              name="global-search"
               type="text" 
               autoComplete="off" 
+              aria-label="Global search"
               placeholder="Global Search (Phone, Name, Order ID, Tracking)..." 
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setIsSearchOpen(true); }}

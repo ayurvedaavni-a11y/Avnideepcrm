@@ -93,10 +93,12 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
         <div className="p-6 overflow-y-auto space-y-5">
           {/* Status */}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <label htmlFor="calllog-status" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
               Call Result / Status
             </label>
             <select
+              id="calllog-status"
+              name="calllog-status"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/30"
@@ -132,6 +134,8 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
               Call Duration (minutes, optional)
             </label>
             <input
+              id="calllog-duration"
+              name="calllog-duration"
               type="number"
               min={0}
               inputMode="numeric"
@@ -149,11 +153,11 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <input type="date" value={followupDate} onChange={(e) => setFollowupDate(e.target.value)}
+                <input id="calllog-followup-date" name="calllog-followup-date" type="date" value={followupDate} onChange={(e) => setFollowupDate(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
               </div>
               <div>
-                <input type="time" value={followupTime} onChange={(e) => setFollowupTime(e.target.value)}
+                <input id="calllog-followup-time" name="calllog-followup-time" type="time" value={followupTime} onChange={(e) => setFollowupTime(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
               </div>
             </div>
@@ -165,9 +169,9 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
               <Bell size={14} /> Reminder
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <input type="date" value={reminderDate} onChange={(e) => setReminderDate(e.target.value)}
+              <input id="calllog-reminder-date" name="calllog-reminder-date" type="date" value={reminderDate} onChange={(e) => setReminderDate(e.target.value)}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
-              <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
+              <input id="calllog-reminder-time" name="calllog-reminder-time" type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
                 className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
             </div>
             <input

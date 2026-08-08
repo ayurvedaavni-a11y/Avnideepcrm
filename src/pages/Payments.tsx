@@ -65,7 +65,7 @@ export function Payments() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input type="text" placeholder="Search by invoice, customer, or mobile…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          <input id="payment-search" name="payment-search" aria-label="Search payments" type="text" placeholder="Search by invoice, customer, or mobile…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
       </div>
 

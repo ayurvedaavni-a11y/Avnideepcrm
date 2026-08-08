@@ -177,27 +177,27 @@ export function Team() {
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" placeholder="e.g. Rahul Sharma"
+              <label htmlFor="team-full-name" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Full Name</label>
+              <input id="team-full-name" name="team-full-name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" placeholder="e.g. Rahul Sharma"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mobile Number</label>
-              <input type="tel" inputMode="numeric" maxLength={10} value={mobile} onChange={(e) => setMobile(e.target.value)}
+              <label htmlFor="team-mobile" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mobile Number</label>
+              <input id="team-mobile" name="team-mobile" type="tel" inputMode="numeric" maxLength={10} value={mobile} onChange={(e) => setMobile(e.target.value)}
                 autoComplete="off" placeholder="9876543210"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login PIN (6-8 digits)</label>
-              <input type="password" inputMode="numeric" maxLength={8} value={pin} onChange={(e) => setPin(e.target.value)}
+              <label htmlFor="team-pin" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login PIN (6-8 digits)</label>
+              <input id="team-pin" name="team-pin" type="password" inputMode="numeric" maxLength={8} value={pin} onChange={(e) => setPin(e.target.value)}
                 autoComplete="new-password" placeholder="••••••"
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition" />
             </div>
             <div>
-              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Role</label>
-              <select value={role} onChange={(e) => setRole(e.target.value as 'telecaller' | 'admin')}
+              <label htmlFor="team-role" className="text-xs font-bold text-slate-500 uppercase tracking-wider">Role</label>
+              <select id="team-role" name="team-role" value={role} onChange={(e) => setRole(e.target.value as 'telecaller' | 'admin')}
                 className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition">
                 <option value="telecaller">Telecaller</option>
                 <option value="admin">Admin</option>

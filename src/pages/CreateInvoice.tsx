@@ -183,6 +183,9 @@ export function CreateInvoice() {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
+              id="invoice-customer-search"
+              name="invoice-customer-search"
+              aria-label="Search customer"
               type="text"
               placeholder="Search customer by name or mobile…"
               value={customerSearch}

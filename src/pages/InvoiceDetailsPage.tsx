@@ -410,11 +410,11 @@ export function InvoiceDetailsPage() {
 function Field({ label, value, onChange, type = 'text', multiline = false, className = '' }: { label: string; value: any; onChange: (v: string) => void; type?: string; multiline?: boolean; className?: string }) {
   return (
     <div className={className}>
-      <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">{label}</label>
+      <label htmlFor={`inv-field-${label}`} className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">{label}</label>
       {multiline ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+        <textarea id={`inv-field-${label}`} name={`inv-field-${label}`} value={value} onChange={(e) => onChange(e.target.value)} rows={2} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
       ) : (
-        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+        <input id={`inv-field-${label}`} name={`inv-field-${label}`} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
       )}
     </div>
   );

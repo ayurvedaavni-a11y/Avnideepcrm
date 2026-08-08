@@ -518,7 +518,10 @@ export function LeadCenter() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
+            id="lead-search"
+            name="lead-search"
             type="text"
+            aria-label="Search leads"
             placeholder="Search name, mobile or order ID..."
             value={mobileSearch}
             onChange={(e) => { setMobileSearch(e.target.value); setPage(0); }}
@@ -557,23 +560,23 @@ export function LeadCenter() {
       {/* Filters + Bulk Assign */}
       <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-2">
         {isAdmin && (
-          <select value={filterTelecaller} onChange={(e) => { setFilterTelecaller(e.target.value); setPage(0); }}
+          <select id="lead-filter-telecaller" name="lead-filter-telecaller" aria-label="Filter by telecaller" value={filterTelecaller} onChange={(e) => { setFilterTelecaller(e.target.value); setPage(0); }}
             className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none">
             <option value="">All Telecallers</option>
             {telecallers.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
           </select>
         )}
-        <select value={filterState} onChange={(e) => { setFilterState(e.target.value); setPage(0); }}
+        <select id="lead-filter-state" name="lead-filter-state" aria-label="Filter by state" value={filterState} onChange={(e) => { setFilterState(e.target.value); setPage(0); }}
           className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none">
           <option value="">All States</option>
           {Array.from(new Set(allCustomers.map(c => c.state).filter(Boolean))).sort().map(st => <option key={st} value={st}>{st}</option>)}
         </select>
-        <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
+        <select id="lead-filter-status" name="lead-filter-status" aria-label="Filter by status" value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
           className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none">
           <option value="">All Statuses</option>
           {TELECALLER_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
         </select>
-        <input value={filterProduct} onChange={(e) => { setFilterProduct(e.target.value); setPage(0); }}
+        <input id="lead-filter-product" name="lead-filter-product" aria-label="Filter by product" value={filterProduct} onChange={(e) => { setFilterProduct(e.target.value); setPage(0); }}
           placeholder="Filter by product..." className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none w-44" />
         {isAdmin && selectedIds.size > 0 && (
           <>
@@ -761,12 +764,12 @@ function FollowupModal({ lead, onClose, onSave }: any) {
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Date *</label>
-              <input required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+              <label htmlFor="lead-schedule-date" className="block text-sm font-medium text-slate-700 mb-1">Date *</label>
+              <input id="lead-schedule-date" name="lead-schedule-date" required type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Time *</label>
-              <input required type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
+              <label htmlFor="lead-schedule-time" className="block text-sm font-medium text-slate-700 mb-1">Time *</label>
+              <input id="lead-schedule-time" name="lead-schedule-time" required type="time" value={time} onChange={e => setTime(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
           <div>
@@ -865,15 +868,15 @@ function BulkAssignModal({ count, telecallers, onClose, onAssign }: {
         </div>
         <div className="p-6 space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Telecaller</label>
-            <select value={tcId} onChange={(e) => setTcId(e.target.value)}
+            <label htmlFor="lead-assign-telecaller" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Telecaller</label>
+            <select id="lead-assign-telecaller" name="lead-assign-telecaller" value={tcId} onChange={(e) => setTcId(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30">
               <option value="">Select telecaller…</option>
               {telecallers.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
             </select>
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
-            <input type="checkbox" checked={reassign} onChange={(e) => setReassign(e.target.checked)} className="w-4 h-4 accent-blue-600" />
+          <label htmlFor="lead-reassign" className="flex items-center gap-2 text-sm text-slate-600">
+            <input id="lead-reassign" name="lead-reassign" type="checkbox" checked={reassign} onChange={(e) => setReassign(e.target.checked)} className="w-4 h-4 accent-blue-600" />
             Already-assigned leads ko bhi move karein (reassign)
           </label>
         </div>
@@ -1020,41 +1023,41 @@ function LeadForm({ onClose }: { onClose: () => void }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-4">
                 <h3 className="font-bold text-slate-700 border-b pb-2">Customer Details</h3>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number *</label>
-                  <input required type="text" maxLength={10} value={formData.mobile}
+                <div><label htmlFor="lead-form-mobile" className="block text-sm font-medium text-slate-700 mb-1">Mobile Number *</label>
+                  <input id="lead-form-mobile" name="lead-form-mobile" required type="text" maxLength={10} value={formData.mobile}
                     onChange={e => { setFormData({...formData, mobile: e.target.value}); checkExistingCustomer(e.target.value); }}
                     className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
-                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label htmlFor="lead-form-name" className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
+                  <input id="lead-form-name" name="lead-form-name" required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Full Address</label>
                   <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 rows-2" /></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <PincodeInput pincode={formData.pincode} city={formData.city} state={formData.state}
                     onChange={(updates: any) => setFormData(prev => ({...prev, ...updates}))} />
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">City</label>
-                    <input type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                  <div><label htmlFor="lead-form-city" className="block text-sm font-medium text-slate-700 mb-1">City</label>
+                    <input id="lead-form-city" name="lead-form-city" type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                 </div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">State</label>
-                  <input type="text" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Auto-filled from pincode" /></div>
+                <div><label htmlFor="lead-form-state" className="block text-sm font-medium text-slate-700 mb-1">State</label>
+                  <input id="lead-form-state" name="lead-form-state" type="text" value={formData.state} onChange={e => setFormData({...formData, state: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" placeholder="Auto-filled from pincode" /></div>
               </div>
               <div className="space-y-4">
                 <h3 className="font-bold text-slate-700 border-b pb-2">Lead Details</h3>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Product Interested *</label>
-                  <input required type="text" value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                <div><label htmlFor="lead-form-product" className="block text-sm font-medium text-slate-700 mb-1">Product Interested *</label>
+                  <input id="lead-form-product" name="lead-form-product" required type="text" value={formData.product} onChange={e => setFormData({...formData, product: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Expected Amount *</label>
-                    <input required type="number" value={formData.expectedAmount} onChange={e => setFormData({...formData, expectedAmount: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                  <div><label htmlFor="lead-form-amount" className="block text-sm font-medium text-slate-700 mb-1">Expected Amount *</label>
+                    <input id="lead-form-amount" name="lead-form-amount" required type="number" value={formData.expectedAmount} onChange={e => setFormData({...formData, expectedAmount: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
                     <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
                       {TELECALLER_STATUSES.map(st => <option key={st}>{st}</option>)}
                     </select></div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Followup Date</label>
-                    <input type="date" value={formData.followupDate} onChange={e => setFormData({...formData, followupDate: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Followup Time</label>
-                    <input type="time" value={formData.followupTime} onChange={e => setFormData({...formData, followupTime: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                  <div><label htmlFor="lead-form-followup-date" className="block text-sm font-medium text-slate-700 mb-1">Followup Date</label>
+                    <input id="lead-form-followup-date" name="lead-form-followup-date" type="date" value={formData.followupDate} onChange={e => setFormData({...formData, followupDate: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                  <div><label htmlFor="lead-form-followup-time" className="block text-sm font-medium text-slate-700 mb-1">Followup Time</label>
+                    <input id="lead-form-followup-time" name="lead-form-followup-time" type="time" value={formData.followupTime} onChange={e => setFormData({...formData, followupTime: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500" /></div>
                 </div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
                   <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 rows-2" /></div>

@@ -316,6 +316,9 @@ export function FollowUps() {
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
         <input
+          id="followup-search"
+          name="followup-search"
+          aria-label="Search follow-ups"
           type="text"
           placeholder="Search by name, mobile, product, notes..."
           value={searchQuery}

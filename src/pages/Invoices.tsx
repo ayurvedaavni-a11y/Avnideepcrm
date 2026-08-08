@@ -195,6 +195,9 @@ export function Invoices() {
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
+            id="invoice-search"
+            name="invoice-search"
+            aria-label="Search invoices"
             type="text"
             placeholder="Search invoice no, customer, mobile…"
             value={searchTerm}

@@ -252,8 +252,10 @@ function SettingsContent() {
           </p>
           <div className="flex items-end gap-3 flex-wrap">
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Commission Rate (%)</label>
+              <label htmlFor="settings-commission" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Commission Rate (%)</label>
               <input
+                id="settings-commission"
+                name="settings-commission"
                 type="number" min={0} max={100} inputMode="decimal"
                 value={commissionRate}
                 onChange={(e) => setCommissionRate(e.target.value.replace(/[^0-9.]/g, ''))}

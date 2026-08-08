@@ -312,8 +312,10 @@ export function BookOrderModal({ leadId, onClose }: Props) {
               <Input label="Full Name" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Mobile</label>
+                  <label htmlFor="bookorder-mobile" className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Mobile</label>
                   <input
+                    id="bookorder-mobile"
+                    name="bookorder-mobile"
                     className="w-full p-3 bg-slate-100 border border-slate-200 rounded-2xl text-sm font-medium"
                     value={formData.mobile}
                     readOnly={!isAdmin}
@@ -343,10 +345,12 @@ export function BookOrderModal({ leadId, onClose }: Props) {
 
             <div className="space-y-4">
               <div className="relative">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Select Product</label>
+                <label htmlFor="bookorder-product" className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Select Product</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
                   <input 
+                    id="bookorder-product"
+                    name="bookorder-product"
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:ring-4 focus:ring-blue-50 focus:border-blue-500 transition-all outline-none"
                     placeholder="Search inventory..."
                     value={formData.productSearch}

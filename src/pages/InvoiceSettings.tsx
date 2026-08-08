@@ -145,11 +145,11 @@ function TabBtn({ active, onClick, icon: Icon, label }: any) {
 function Field({ label, value, onChange, type = 'text', multiline = false }: { label: string; value: any; onChange: (v: string) => void; type?: string; multiline?: boolean }) {
   return (
     <div>
-      <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">{label}</label>
+      <label htmlFor={`invset-${label}`} className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">{label}</label>
       {multiline ? (
-        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={4} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+        <textarea id={`invset-${label}`} name={`invset-${label}`} value={value} onChange={(e) => onChange(e.target.value)} rows={4} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
       ) : (
-        <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+        <input id={`invset-${label}`} name={`invset-${label}`} type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
       )}
     </div>
   );

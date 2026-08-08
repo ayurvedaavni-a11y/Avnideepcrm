@@ -378,6 +378,9 @@ export function BackupCenter() {
 
           <div className="border-2 border-dashed border-slate-300 hover:border-amber-500 rounded-xl p-8 text-center cursor-pointer transition bg-slate-50 hover:bg-amber-50/20 relative">
             <input
+              id="backup-restore-file"
+              name="backup-restore-file"
+              aria-label="Restore backup file"
               type="file"
               accept=".xlsx"
               onChange={handleImport}
