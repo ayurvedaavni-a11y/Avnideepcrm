@@ -49,6 +49,7 @@ import { Customer360Profile } from '../components/Customer360Profile';
 import { OrderEditModal } from '../components/OrderEditModal';
 import { ModalPortal } from '../components/ModalPortal';
 import { useAuth } from '../context/AuthContext';
+import { useDateFilter } from '../context/DateFilterContext';
 
 // =====================================================================
 // Pipeline configuration — status colors, icons, transitions
@@ -576,7 +577,6 @@ const MobileOrderCard = memo(function MobileOrderCard({ order, customer, lead, o
 // Filter panel
 // =====================================================================
 interface Filters {
-  search: string;
   telecaller: string;
   status: string;
   payment: string;
@@ -589,7 +589,7 @@ interface Filters {
   dateTo: string;
 }
 
-const EMPTY_FILTERS: Filters = { search: '', telecaller: '', status: '', payment: '', courier: '', priority: '', product: '', minAmount: '', maxAmount: '', dateFrom: '', dateTo: '' };
+const EMPTY_FILTERS: Filters = { telecaller: '', status: '', payment: '', courier: '', priority: '', product: '', minAmount: '', maxAmount: '', dateFrom: '', dateTo: '' };
 
 function FilterBar({ filters, setFilters, tcNames, couriers, products, onClear, resultCount, isOpen, onToggle }: {
   filters: Filters;
@@ -699,6 +699,7 @@ function FilterBar({ filters, setFilters, tcNames, couriers, products, onClear, 
 // =====================================================================
 function OrderPipelineContent() {
   const { isAdmin, profile } = useAuth();
+  const { filterByDate } = useDateFilter();
   const allOrders = useLiveQuery(() => db.orders.toArray(), []) || [];
   const allCustomers = useLiveQuery(() => db.customers.toArray(), []) || [];
   const allLeads = useLiveQuery<Lead[]>(() => db.leads.toArray(), []) || [];
@@ -744,9 +745,11 @@ function OrderPipelineContent() {
   }, [allOrders]);
 
   // ===== Master filtered order set (all statuses; admin) =====
+  // ROOT-CAUSE FIX: the global date filter (DateFilterContext) is now applied
+  // FIRST so the order list AND every summary card respect the selected range.
   const filteredOrders = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    let list = allOrders;
+    let list = filterByDate(allOrders, 'orderDate');
     if (term) {
       list = list.filter(o => {
         const c = customerMap.get(o.customerId);
@@ -781,7 +784,7 @@ function OrderPipelineContent() {
       });
     }
     return list;
-  }, [allOrders, searchTerm, filters, customerMap, leadMap]);
+  }, [allOrders, filterByDate, searchTerm, filters, customerMap, leadMap]);
 
   // Pipeline orders (4 admin columns)
   const pipelineOrders = useMemo(() => filteredOrders.filter(o => PIPELINE_KEYS.includes(o.status)), [filteredOrders]);
@@ -796,10 +799,11 @@ function OrderPipelineContent() {
   // Shipped+ (managed in Logistics)
   const shippedPlus = useMemo(() => filteredOrders.filter(o => isShipmentStatus(o.status)), [filteredOrders]);
 
-  // ===== Stats (from ALL orders, date-filter-aware via master filter) =====
+  // ===== Stats (from the FILTERED set so every summary card recalcs with the
+  // selected date range, search, status and telecaller filters) =====
   const todayStr = new Date().toDateString();
   const stats = useMemo(() => {
-    const all = allOrders;
+    const all = filteredOrders;
     const today = all.filter(o => {
       try { return new Date(o.orderDate).toDateString() === todayStr; } catch { return false; }
     }).length;
@@ -818,7 +822,7 @@ function OrderPipelineContent() {
       revenue,
       aov: deliveredCount > 0 ? Math.round(revenue / deliveredCount) : 0,
     };
-  }, [allOrders, pipelineOrders, todayStr]);
+  }, [filteredOrders, pipelineOrders, todayStr]);
 
   // ===== Telecaller view data =====
   const tcLeads = useMemo(
@@ -826,10 +830,14 @@ function OrderPipelineContent() {
     [profile, isAdmin, allLeads]
   );
   const tcLeadIds = useMemo(() => new Set(tcLeads.map(l => l.id)), [tcLeads]);
+  // Telecaller orders — always scoped to the telecaller's own leads (permission
+  // boundary), then filtered by the global date range so My Orders respects the
+  // selected date filter just like every other module.
   const tcOrders = useMemo(() => {
     if (isAdmin) return [];
-    return allOrders.filter(o => o.leadId != null && tcLeadIds.has(o.leadId));
-  }, [allOrders, tcLeadIds, isAdmin]);
+    const mine = allOrders.filter(o => o.leadId != null && tcLeadIds.has(o.leadId));
+    return filterByDate(mine, 'orderDate');
+  }, [allOrders, tcLeadIds, isAdmin, filterByDate]);
 
   const leadsReady = useMemo(
     () => (isAdmin ? allLeads.filter(l => l.status === 'Order Booked') : []),
