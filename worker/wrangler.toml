@@ -17,6 +17,8 @@ main = "src/index.ts"
 # (was 2026-07-01, which the local runtime rejected — worker could not
 # start locally; see audit BUG 4).
 compatibility_date = "2026-05-01"
+# nodejs_compat: required by web-push (Web Push encryption + https request).
+compatibility_flags = ["nodejs_compat"]
 account_id = "b47dcac070b4d641981d3e6d9b300294"
 
 [observability]
@@ -28,6 +30,15 @@ database_name = "avnideep-crm"
 # REPLACE with the database_id printed by: wrangler d1 create avnideep-crm
 database_id = "996e0545-5fe2-439f-b4ab-91540f604e57"
 
+[triggers]
+# Callback reminder engine — fires due Web Push reminders every minute.
+crons = ["* * * * *"]
+
 [vars]
 # Local/dev fallbacks only — in production use `wrangler secret put` for these.
 PBKDF2_ITERATIONS = "15000"
+# VAPID keys for Web Push. Generate with: npx web-push generate-vapid-keys
+# NEVER commit the private key — set via `wrangler secret put VAPID_PRIVATE_KEY`.
+# Public key is safe to commit (it is exposed to browsers by design).
+VAPID_PUBLIC_KEY = "BBkghzRaYVNusAQG4fmOQr5qECBasNpMJXkIXTE316_ES2PL5tzzO9Qp9ptiBOHl1Fzv8esmhkvvybmjvCF8aVo"
+VAPID_SUBJECT = "mailto:admin@avnideep.in"

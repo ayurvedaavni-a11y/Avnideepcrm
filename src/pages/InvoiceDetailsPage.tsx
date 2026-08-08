@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
@@ -14,6 +14,7 @@ import { downloadInvoicePDF, printInvoice, calculateGST } from '../db/invoiceEng
 import { getCompanyConfig, getGSTConfig } from '../db/settingsEngine';
 import { safeMoney, safeString } from '../lib/safe';
 import { resolveCustomerState } from '../db/stateResolver';
+import { Popover } from '../components/Popover';
 
 interface EditableItem {
   productId?: number;
@@ -45,6 +46,7 @@ export function InvoiceDetailsPage() {
   const [extraCharge, setExtraCharge] = useState(0);
   const [productSearch, setProductSearch] = useState<string[]>([]);
   const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
+  const productAnchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const products = useLiveQuery(() => db.products.filter(p => p.isActive !== false).toArray(), []) || [];
 
   useEffect(() => {
@@ -336,19 +338,24 @@ export function InvoiceDetailsPage() {
                 return (
                   <div key={idx} className="border border-slate-200 rounded-xl p-4 space-y-3 relative">
                     <div className="grid grid-cols-[1fr_100px_100px_100px_100px_40px] gap-3 items-start">
-                      <div className="relative">
+                      <div className="relative" ref={(el) => { productAnchorRefs.current[idx] = el; }}>
                         <label className="block text-xs font-bold text-slate-600 mb-1">Product</label>
                         <input value={search} onChange={(e) => { const v = e.target.value; setProductSearch(prev => prev.map((s, i) => i === idx ? v : s)); updateItem(idx, { product: v }); setOpenDropdownIndex(idx); }} className="w-full p-2 border border-slate-300 rounded-lg text-sm" placeholder="Search by product, SKU, HSN" onFocus={() => setOpenDropdownIndex(idx)} />
-                        {matches.length > 0 && search && (
-                          <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-56 overflow-y-auto">
-                            {matches.map(p => (
-                              <button key={p.id} onClick={() => selectProduct(idx, p)} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0">
-                                <div className="font-bold text-slate-800 text-sm">{p.name}</div>
-                                <div className="text-xs text-slate-500">SKU: {p.sku} • HSN: {p.hsnCode} • GST: {p.gstRate}% • Stock: {p.stockQty}</div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                        <Popover
+                          anchor={productAnchorRefs.current[idx]}
+                          open={matches.length > 0 && !!search && openDropdownIndex === idx}
+                          onClose={() => { /* stays open while typing */ }}
+                          width={productAnchorRefs.current[idx]?.offsetWidth || 280}
+                          closeOnScroll
+                          className="max-h-56"
+                        >
+                          {matches.map(p => (
+                            <button key={p.id} onClick={() => selectProduct(idx, p)} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0">
+                              <div className="font-bold text-slate-800 text-sm">{p.name}</div>
+                              <div className="text-xs text-slate-500">SKU: {p.sku} • HSN: {p.hsnCode} • GST: {p.gstRate}% • Stock: {p.stockQty}</div>
+                            </button>
+                          ))}
+                        </Popover>
                       </div>
                       <Field label="Qty" value={item.qty} onChange={(v) => updateItem(idx, { qty: Number(v) || 0 })} type="number" />
                       <Field label="Rate" value={item.rate} onChange={(v) => updateItem(idx, { rate: safeMoney(v) })} type="number" />

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import Bell from 'lucide-react/dist/esm/icons/bell'
@@ -8,6 +8,7 @@ import PhoneCall from 'lucide-react/dist/esm/icons/phone-call'
 import PackageX from 'lucide-react/dist/esm/icons/package-x'
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
+import { Popover } from './Popover';
 
 const TYPE_ICONS: Record<string, any> = {
   info: PhoneCall,
@@ -26,7 +27,7 @@ const TYPE_COLORS: Record<string, string> = {
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'all' | 'unread'>('unread');
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
 
   const allNotifications = useLiveQuery(() => db.notifications.reverse().sortBy('createdAt'), []) || [];
@@ -34,17 +35,6 @@ export function NotificationBell() {
 
   const displayed = selectedTab === 'unread' ? unreadNotifications : allNotifications.slice(0, 50);
   const unreadCount = unreadNotifications.length;
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
 
   const markAllRead = async () => {
     for (const n of unreadNotifications) {
@@ -61,8 +51,8 @@ export function NotificationBell() {
   };
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button onClick={handleBellClick} className="relative p-1 hover:bg-slate-100 rounded-lg transition" title="Notifications">
+    <div className="relative">
+      <button ref={triggerRef} onClick={handleBellClick} className="relative p-1 hover:bg-slate-100 rounded-lg transition" title="Notifications">
         <Bell size={20} className="text-slate-600" />
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-sm">
@@ -71,8 +61,13 @@ export function NotificationBell() {
         )}
       </button>
 
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-2 w-[420px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 flex flex-col max-h-[600px] animate-in slide-in-from-top-2 duration-200">
+      <Popover
+        anchor={triggerRef.current}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        width={420}
+        className="max-w-[calc(100vw-1rem)] flex flex-col max-h-[600px]"
+      >
           {/* Header */}
           <div className="p-4 border-b border-slate-100 flex justify-between items-center">
             <div>
@@ -145,8 +140,7 @@ export function NotificationBell() {
               </button>
             </div>
           )}
-        </div>
-      )}
+        </Popover>
     </div>
   );
 }

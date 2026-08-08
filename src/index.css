@@ -91,6 +91,32 @@ textarea {
 .av-stagger > *:nth-child(6)  { animation-delay: 0.17s; }
 .av-stagger > *:nth-child(n+7){ animation-delay: 0.2s; }
 
+/* =====================================================================
+   GLOBAL LAYERING SYSTEM — one source of truth for z-index.
+   =====================================================================
+   Every dropdown/popover in the app renders on the av-popover-layer below.
+   Do NOT sprinkle random z-index values in components; use these layers:
+
+     Layer                 z-index   Used by
+     ─────────────────────────────────────────────────────────
+     header (sticky)       10        GlobalSearchAndNav top bar
+     date filter bar       10        GlobalDateFilter bar
+     sidebar overlay       40        mobile drawer backdrop
+     sidebar drawer        50        mobile Sidebar
+     POPOVER               60        shared <Popover/> dropdowns (this file)
+     modal                 100-120   ModalPortal modals (z-[100]/z-[110]/…)
+     toast                 9999      react-hot-toast (default)
+
+   Popover portals to document.body, escaping <main>'s stacking context
+   (relative z-0) and every overflow: hidden/auto container, so it always
+   paints above header/sidebar/cards yet below modals and toasts.
+   ===================================================================== */
+.av-popover-layer {
+  z-index: 60;
+  transform-origin: top center;
+  animation: av-zoom-in 0.14s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* ---------- Slim, subtle scrollbars for kanban / chips ---------- */
 .av-scroll-thin {
   scrollbar-width: thin;

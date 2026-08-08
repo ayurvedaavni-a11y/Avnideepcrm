@@ -8,30 +8,20 @@ import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down'
 import X from 'lucide-react/dist/esm/icons/x'
 import { useDateFilter, DatePreset, QUICK_PRESETS, PRESET_LABELS } from '../context/DateFilterContext';
 import { cn } from '../lib/utils';
+import { Popover } from './Popover';
 
 export function GlobalDateFilter() {
   const { state, range, setPreset, setCustomRange, clearFilter, activeLabel } = useDateFilter();
   const [isOpen, setIsOpen] = useState(false);
   const [customStart, setCustomStart] = useState(state.customStart);
   const [customEnd, setCustomEnd] = useState(state.customEnd);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Sync local custom state with context
   useEffect(() => {
     setCustomStart(state.customStart);
     setCustomEnd(state.customEnd);
   }, [state.customStart, state.customEnd]);
-
-  // Close on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const handlePresetClick = (preset: DatePreset) => {
     if (preset === 'custom') {
@@ -59,9 +49,10 @@ export function GlobalDateFilter() {
   const isFilterActive = state.preset !== 'all';
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       {/* Trigger Button */}
       <button
+        ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
           'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all duration-200',
@@ -78,9 +69,14 @@ export function GlobalDateFilter() {
         )}
       </button>
 
-      {/* Dropdown Panel */}
-      {isOpen && (
-        <div className="absolute top-full mt-2 right-0 w-[680px] max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+      {/* Dropdown Panel — via shared Popover (escapes clipping + stacking traps) */}
+      <Popover
+        anchor={triggerRef.current}
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        width={680}
+        className="max-w-[calc(100vw-1rem)]"
+      >
           {/* Quick Preset Grid */}
           <div className="p-4 border-b border-slate-100">
             <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Quick Filters</div>
@@ -179,8 +175,7 @@ export function GlobalDateFilter() {
               </button>
             )}
           </div>
-        </div>
-      )}
+        </Popover>
     </div>
   );
 }

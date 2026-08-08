@@ -19,6 +19,7 @@
 // =====================================================================
 import { TABLES, SYNC_TABLE_NAMES, TableDef } from './tables';
 import { hashPin, verifyPin, signJwt, verifyJwt } from './auth';
+import { handlePushSubscribe, handlePushUnsubscribe, handleReminderUpsert, handleReminderCancel, handleReminderList, sendDueReminders } from './push';
 
 export interface Env {
   DB: D1Database;
@@ -27,6 +28,9 @@ export interface Env {
   INTAKE_KEY: string;
   PBKDF2_ITERATIONS?: string;
   ALLOWED_ORIGINS?: string;
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_SUBJECT?: string;
 }
 
 /** Tables whose `id` column is TEXT (leads uses crypto.randomUUID()). */
@@ -1422,6 +1426,13 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
       if (path === '/api/intake' && request.method === 'POST') return handleIntake(env, request);
       if (path === '/api/intake/pending' && request.method === 'GET') return handleIntakePending(env, request, user);
 
+      // ---- push notifications (callback reminders) ----
+      if (path === '/api/push/subscribe' && request.method === 'POST') return handlePushSubscribe(env, request, user);
+      if (path === '/api/push/unsubscribe' && request.method === 'POST') return handlePushUnsubscribe(env, request, user);
+      if (path === '/api/push/reminders' && request.method === 'POST') return handleReminderUpsert(env, request, user);
+      if (path === '/api/push/reminders' && request.method === 'DELETE') return handleReminderCancel(env, request, user, url);
+      if (path === '/api/push/reminders' && request.method === 'GET') return handleReminderList(env, request, user);
+
       return json({ error: 'Not found' }, 404);
     } catch (e: any) {
       return json({ error: String(e?.message || e) }, 500);
@@ -1444,5 +1455,11 @@ export default {
     const headers = new Headers(res.headers);
     for (const [k, v] of Object.entries(cors)) headers.set(k, v);
     return new Response(res.body, { status: res.status, headers });
+  },
+
+  // Cron (every minute) — fires due callback reminders via Web Push even when
+  // every browser/PWA client is closed. See worker/src/push.ts.
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(sendDueReminders(env));
   },
 };

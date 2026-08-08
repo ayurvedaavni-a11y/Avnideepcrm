@@ -2,6 +2,7 @@ import { db } from './db';
 import { toast } from 'react-hot-toast';
 import { autoGenerateInvoice, syncInvoiceWithOrderStatus } from './invoiceEngine';
 import { deductStockForOrder, restoreStockForOrder } from './inventoryEngine';
+import { scheduleLeadReminder, cancelLeadReminder, isReminderStatus } from './pushClient';
 
 export function playAlertSound() {
   try {
@@ -294,6 +295,20 @@ export async function processLeadStatusUpdate(
     if (metadata.reason) leadUpdate.notes = `Not Interested Reason: ${metadata.reason}. ${leadUpdate.notes || ''}`;
 
     await db.leads.update(leadId, leadUpdate);
+
+    // =====================
+    // WEB PUSH CALLBACK REMINDER: schedule when a follow-up/callback is set,
+    // cancel when the lead leaves the reminder family (done/closed/lost).
+    // Non-blocking — a failed push API call must never break the status flow.
+    // =====================
+    try {
+      if (isReminderStatus(newStatus) && (metadata.followupDate || lead.followupDate)) {
+        const synced = { ...lead, ...leadUpdate };
+        void scheduleLeadReminder(synced);
+      } else if (!isReminderStatus(newStatus)) {
+        void cancelLeadReminder(leadId);
+      }
+    } catch { /* push is best-effort */ }
 
     // =====================
     // STEP 2: DEDUP SAFETY — After update, clean up any stale duplicates.

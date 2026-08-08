@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/db';
 import { processLeadStatusUpdate } from '../db/workflow';
@@ -29,6 +30,7 @@ import Phone from 'lucide-react/dist/esm/icons/phone'
 import MessageCircle from 'lucide-react/dist/esm/icons/message-circle'
 import MessageSquare from 'lucide-react/dist/esm/icons/message-square'
 import UserPlus from 'lucide-react/dist/esm/icons/user-plus'
+import BadgeCheck from 'lucide-react/dist/esm/icons/badge-check'
 import { CallLogModal } from '../components/CallLogModal';
 import { api } from '../db/apiClient';
 import { ModalPortal } from '../components/ModalPortal';
@@ -59,11 +61,28 @@ type TabKey = typeof TABS[number]['key'];
 
 export function LeadCenter() {
   const { profile: authProfile, isAdmin } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const leads = useLiveQuery(() => db.leads.reverse().toArray()) || [];
   const allCustomers = useLiveQuery(() => db.customers.toArray()) || [];
   const allOrders = useLiveQuery(() => db.orders.toArray()) || [];
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  // Push notification click → ?openLead=<leadId> deep-link: open the lead's
+  // customer 360 profile directly. Consumed once, then the param is removed.
+  useEffect(() => {
+    const openLead = searchParams.get('openLead');
+    if (!openLead) return;
+    const leadId = Number(openLead);
+    if (!leadId) return;
+    (async () => {
+      const lead = await db.leads.get(leadId);
+      if (lead?.customerId) setSelectedCustomerId(lead.customerId);
+    })();
+    const next = new URLSearchParams(searchParams);
+    next.delete('openLead');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [mobileSearch, setMobileSearch] = useState('');
   const [callLogLead, setCallLogLead] = useState<{ lead: any; customer: any } | null>(null);
   const [bulkAssignLead, setBulkAssignLead] = useState<{ leadIds: number[] } | null>(null);
@@ -253,6 +272,38 @@ export function LeadCenter() {
     return filteredLeads.slice(start, start + PAGE_SIZE);
   }, [filteredLeads, safePage]);
 
+  // ---------- Bulk selection (page-scoped Select All + cross-page Set) ----------
+  // The Set persists across pages (multi-page bulk selection supported), but the
+  // header checkbox is ALWAYS computed from the CURRENT page's visible leads — so
+  // navigating pages never incorrectly shows "all selected".
+  const pageLeadIds = useMemo(
+    () => paginatedLeads.map(l => l.id).filter((id): id is number => typeof id === 'number'),
+    [paginatedLeads]
+  );
+  const selectedOnPage = pageLeadIds.filter(id => selectedIds.has(id)).length;
+  const allPageSelected = pageLeadIds.length > 0 && selectedOnPage === pageLeadIds.length;
+  const somePageSelected = selectedOnPage > 0 && !allPageSelected;
+  const toggleSelectAll = useCallback((checked: boolean) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      for (const id of pageLeadIds) {
+        if (checked) next.add(id); else next.delete(id);
+      }
+      return next;
+    });
+  }, [pageLeadIds]);
+  // Bulk status / delete confirmation state (modal-driven, never window.confirm)
+  const [bulkStatusLead, setBulkStatusLead] = useState<{ leadIds: number[] } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ leadIds: number[] } | null>(null);
+
+  // Statuses that can be bulk-applied DIRECTLY — anything requiring a followup
+  // modal (Followup/Callback/Busy/…), a reason (Not Interested) or order
+  // conversion (Order Booked/Confirmed) is excluded to avoid data loss.
+  const bulkStatuses = useMemo(() => {
+    const excluded = new Set(['Followup', 'Callback', 'Callback Requested', 'Not Reachable', 'Busy', 'Not Interested', 'Order Booked', 'Order Confirmed']);
+    return (isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).filter(s => !excluded.has(s));
+  }, [isAdmin]);
+
   // ---------- shared row handlers (desktop columns + mobile cards) ----------
   // Single source of truth so desktop and mobile behavior can never diverge.
   const handlePriorityChange = useCallback(async (lead: any, newPriority: string) => {
@@ -283,27 +334,62 @@ export function LeadCenter() {
     }
   }, [telecallers]);
 
-  const handleDeleteLead = useCallback(async (lead: any) => {
-    if (!window.confirm(`Permanently delete lead #${lead.id} from the cloud too?`)) return;
+  // Single delete → opens the shared confirmation modal (never window.confirm)
+  const handleDeleteLead = useCallback((lead: any) => {
+    setDeleteConfirm({ leadIds: [lead.id] });
+  }, []);
+
+  // Runs after the confirm modal — single OR bulk delete (admin-only UI + the
+  // worker enforces admin-only server-side, see /api/sync/delete-bulk 403).
+  const handleConfirmedDelete = useCallback(async () => {
+    if (!deleteConfirm) return;
+    const ids = deleteConfirm.leadIds;
+    setDeleteConfirm(null);
     try {
-      const cloudIds = await resolveCloudIds([lead.id]);
-      if (cloudIds.length) await api.deleteBulk('leads', cloudIds);
-      await db.leads.delete(lead.id);
-      toast.success('Lead deleted');
+      const cloudIds = await resolveCloudIds(ids);
+      const r = cloudIds.length ? await api.deleteBulk('leads', cloudIds) : { deleted: 0 };
+      for (const id of ids) await db.leads.delete(id);
+      toast.success((r?.deleted ?? ids.length) + ' lead(s) deleted');
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        for (const id of ids) next.delete(id);
+        return next;
+      });
     } catch (err: any) {
       toast.error('Delete failed: ' + (err?.message || 'Unknown error'));
     }
-  }, []);
+  }, [deleteConfirm]);
+
+  // Bulk status change — applies a direct-safe status to every selected lead.
+  const handleBulkStatus = useCallback(async (newStatus: string) => {
+    const ids = Array.from(selectedIds);
+    setBulkStatusLead(null);
+    let ok = 0, fail = 0;
+    for (const id of ids) {
+      try {
+        await processLeadStatusUpdate(id, newStatus, { agentName: authProfile?.full_name || 'Admin' });
+        ok++;
+      } catch { fail++; }
+    }
+    toast.success(`${ok} lead(s) → ${statusLabel(newStatus)}` + (fail ? `, ${fail} failed` : ''));
+    setSelectedIds(new Set());
+  }, [selectedIds, authProfile]);
 
   // VirtualTable column definitions
   const leadColumns: VirtualTableColumn<any>[] = useMemo(() => {
     return [
       {
         key: 'select',
-        header: '',
+        header: (
+          <SelectAllCheckbox
+            checked={allPageSelected}
+            indeterminate={somePageSelected}
+            onChange={toggleSelectAll}
+          />
+        ),
         width: '44px',
         align: 'center',
-        render: (lead: any) => isAdmin ? (
+        render: (lead: any) => (
           <input
             type="checkbox"
             checked={selectedIds.has(lead.id)}
@@ -314,9 +400,10 @@ export function LeadCenter() {
                 return next;
               });
             }}
+            aria-label={`Select lead ${lead.id}`}
             className="w-4 h-4 accent-blue-600"
           />
-        ) : null
+        )
       },
       {
         key: 'customer',
@@ -531,7 +618,7 @@ export function LeadCenter() {
         )
       },
     ];
-  }, [customerMap, mobileCountMap, handleStatusChange, isAdmin, telecallers, selectedIds, handlePriorityChange, handleAssign, handleDeleteLead]);
+  }, [customerMap, mobileCountMap, handleStatusChange, isAdmin, telecallers, selectedIds, handlePriorityChange, handleAssign, handleDeleteLead, allPageSelected, somePageSelected, toggleSelectAll]);
 
   return (
     <div className="space-y-3 sm:space-y-4 animate-in fade-in duration-300">
@@ -629,35 +716,41 @@ export function LeadCenter() {
         </select>
         <input id="lead-filter-product" name="lead-filter-product" aria-label="Filter by product" value={filterProduct} onChange={(e) => { setFilterProduct(e.target.value); setPage(0); }}
           placeholder="Filter by product..." className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none w-full sm:w-44 col-span-2 sm:col-span-1" />
-        {isAdmin && selectedIds.size > 0 && (
-          <div className="col-span-2 sm:col-span-1 flex items-center gap-1.5 sm:ml-auto">
-            <button onClick={() => setBulkAssignLead({ leadIds: Array.from(selectedIds) })}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition">
-              <UserPlus size={16} /> Assign ({selectedIds.size})
-            </button>
-            <button
-              onClick={async () => {
-                const n = selectedIds.size;
-                if (!window.confirm(`Permanently delete ${n} selected lead(s)? This also deletes them from the cloud D1.`)) return;
-                const ids = Array.from(selectedIds);
-                try {
-                  const cloudIds = await resolveCloudIds(ids);
-                  const r = cloudIds.length ? await api.deleteBulk('leads', cloudIds) : { deleted: 0 };
-                  for (const id of ids) await db.leads.delete(id);
-                  toast.success((r?.deleted ?? ids.length) + ' lead(s) deleted');
-                  setSelectedIds(new Set());
-                } catch (err: any) {
-                  toast.error('Delete failed: ' + (err?.message || 'Unknown error'));
-                }
-              }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition"
-            >
-              <Trash2 size={16} /> Delete ({selectedIds.size})
-            </button>
-            <button onClick={() => setSelectedIds(new Set())} className="px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100">Clear</button>
-          </div>
-        )}
       </div>
+
+      {/* ===== Bulk Selection Action Bar — appears when leads are selected ===== */}
+      {selectedIds.size > 0 && (
+        <div className="bg-slate-900 text-white rounded-xl px-3.5 py-2.5 shadow-lg flex flex-wrap items-center gap-2 av-fade-in">
+          <span className="font-bold text-sm mr-1">
+            {selectedIds.size} selected
+            {selectedOnPage < selectedIds.size && (
+              <span className="text-slate-400 font-medium text-xs ml-1">({selectedOnPage} on this page)</span>
+            )}
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+            {isAdmin && (
+              <button onClick={() => setBulkAssignLead({ leadIds: Array.from(selectedIds) })}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 transition">
+                <UserPlus size={14} /> Assign
+              </button>
+            )}
+            <button onClick={() => setBulkStatusLead({ leadIds: Array.from(selectedIds) })}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 hover:bg-indigo-500 transition">
+              <BadgeCheck size={14} /> Status
+            </button>
+            {isAdmin && (
+              <button onClick={() => setDeleteConfirm({ leadIds: Array.from(selectedIds) })}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-red-600 hover:bg-red-500 transition">
+                <Trash2 size={14} /> Delete
+              </button>
+            )}
+            <button onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:bg-slate-700 transition">
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ===== DESKTOP: full-featured virtual table (hidden on mobile) ===== */}
       <div className="hidden md:block">
@@ -677,6 +770,23 @@ export function LeadCenter() {
 
       {/* ===== MOBILE: thumb-friendly lead cards (desktop table is hidden) ===== */}
       <div className="md:hidden space-y-2.5">
+        {paginatedLeads.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm px-3.5 py-2 flex items-center justify-between gap-2">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer">
+              <SelectAllCheckbox
+                checked={allPageSelected}
+                indeterminate={somePageSelected}
+                onChange={toggleSelectAll}
+              />
+              Select all on this page
+            </label>
+            {selectedIds.size > 0 && (
+              <button onClick={() => setSelectedIds(new Set())} className="text-xs font-bold text-blue-600 hover:text-blue-700">
+                Clear ({selectedIds.size})
+              </button>
+            )}
+          </div>
+        )}
         {paginatedLeads.length === 0 && (
           <div className="flex items-center justify-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200">
             No leads match this filter.
@@ -733,6 +843,23 @@ export function LeadCenter() {
             Next <ChevronRight size={16} />
           </button>
         </div>
+      )}
+
+      {bulkStatusLead && (
+        <BulkStatusModal
+          count={bulkStatusLead.leadIds.length}
+          statuses={bulkStatuses}
+          onClose={() => setBulkStatusLead(null)}
+          onSave={handleBulkStatus}
+        />
+      )}
+
+      {deleteConfirm && (
+        <ConfirmDeleteModal
+          count={deleteConfirm.leadIds.length}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={handleConfirmedDelete}
+        />
       )}
 
       {bulkAssignLead && (
@@ -824,6 +951,24 @@ export function LeadCenter() {
   );
 }
 
+// ===== Select All checkbox (header + mobile) with indeterminate support =====
+function SelectAllCheckbox({ checked, indeterminate, onChange }: {
+  checked: boolean;
+  indeterminate: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={checked}
+      ref={(el) => { if (el) el.indeterminate = indeterminate; }}
+      onChange={(e) => onChange(e.target.checked)}
+      aria-label="Select all leads on this page"
+      className="w-4 h-4 accent-blue-600"
+    />
+  );
+}
+
 // ===== TabButton (memoized) =====
 const TabButton = React.memo(function TabButton({ label, count, active, onClick }: { label: string, count: number, active: boolean, onClick: () => void }) {
   return (
@@ -876,7 +1021,7 @@ function MobileLeadCard({ lead, customer, duplicateCount, isAdmin, selected, tel
   onAssign: (tcId: string) => Promise<void>;
   onCallLog: () => void;
   onDetails: () => void;
-  onDelete: () => Promise<void>;
+  onDelete: () => void | Promise<void>;
 }) {
   const mobile = customer?.mobile;
   return (
@@ -885,15 +1030,13 @@ function MobileLeadCard({ lead, customer, duplicateCount, isAdmin, selected, tel
       <div className="px-3.5 pt-3 pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex items-start gap-2">
-            {isAdmin && (
-              <input
-                type="checkbox"
-                checked={selected}
-                onChange={(e) => onToggleSelect(e.target.checked)}
-                className="w-4 h-4 accent-blue-600 mt-0.5 shrink-0"
-                aria-label="Select lead"
-              />
-            )}
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={(e) => onToggleSelect(e.target.checked)}
+              className="w-4 h-4 accent-blue-600 mt-0.5 shrink-0"
+              aria-label="Select lead"
+            />
             <div className="min-w-0">
               <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate cursor-pointer hover:text-blue-600" onClick={onDetails}>
                 {customer?.name || 'Unknown'}
@@ -1223,6 +1366,140 @@ function BulkAssignModal({ count, telecallers, onClose, onAssign }: {
         </div>
       </div>
     </div>
+    </ModalPortal>
+  );
+}
+
+// ===== Bulk Status Change modal (direct-safe statuses only, role-filtered) =====
+function BulkStatusModal({ count, statuses, onClose, onSave }: {
+  count: number;
+  statuses: string[];
+  onClose: () => void;
+  onSave: (status: string) => Promise<void>;
+}) {
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const handle = async () => {
+    if (!status || busy) return;
+    setBusy(true);
+    try { await onSave(status); } finally { setBusy(false); }
+  };
+  const body = (
+    <div className="space-y-4">
+      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+        <span>New Status</span>
+        <select value={status} onChange={(e) => setStatus(e.target.value)}
+          className="mt-1.5 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30">
+          <option value="">Select status…</option>
+          {statuses.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
+        </select>
+      </label>
+      <p className="text-xs text-slate-400">
+        Applied to all {count} selected lead(s). Statuses that need extra info (Follow-up, Not Interested, Order Booked) are excluded from bulk change.
+      </p>
+    </div>
+  );
+
+  return (
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+        {/* ===== DESKTOP MODAL ===== */}
+        <div className="hidden md:flex bg-white rounded-2xl w-full max-w-md max-h-[85vh] flex-col shadow-2xl av-zoom-in overflow-hidden">
+          <div className="p-5 border-b border-slate-100 shrink-0">
+            <h2 className="text-lg font-bold text-slate-800">Bulk Status — {count} Lead{count > 1 ? 's' : ''}</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto av-scroll-thin p-5">{body}</div>
+          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+            <button onClick={onClose} className="px-5 py-2 rounded-lg font-medium text-sm text-slate-600 hover:bg-slate-200 transition">Cancel</button>
+            <button onClick={handle} disabled={busy || !status}
+              className="px-5 py-2 rounded-lg font-bold text-sm text-white bg-indigo-600 hover:bg-indigo-700 transition disabled:opacity-60">
+              {busy ? 'Updating…' : 'Update Status'}
+            </button>
+          </div>
+        </div>
+
+        {/* ===== MOBILE BOTTOM SHEET ===== */}
+        <div className="md:hidden bg-white w-full max-h-[85vh] rounded-t-2xl flex flex-col shadow-2xl av-slide-up overflow-hidden">
+          <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+            <div className="w-10 h-1 rounded-full bg-slate-300" />
+          </div>
+          <div className="px-4 pb-3 shrink-0">
+            <h2 className="text-base font-bold text-slate-800">Bulk Status — {count} Lead{count > 1 ? 's' : ''}</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto av-scroll-thin px-4 pb-4">{body}</div>
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl font-medium text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">Cancel</button>
+            <button onClick={handle} disabled={busy || !status}
+              className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white bg-indigo-600 hover:bg-indigo-700 transition disabled:opacity-60">
+              {busy ? 'Updating…' : 'Update Status'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+}
+
+// ===== Delete Confirmation modal — single AND bulk (admin-only actions) =====
+function ConfirmDeleteModal({ count, onClose, onConfirm }: {
+  count: number;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const handle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await onConfirm(); } finally { setBusy(false); }
+  };
+  const body = (
+    <div className="flex items-start gap-3">
+      <div className="p-2.5 rounded-full bg-red-100 text-red-600 shrink-0"><Trash2 size={20} /></div>
+      <div>
+        <p className="text-sm font-bold text-slate-800">Permanently delete {count} lead{count > 1 ? 's' : ''}?</p>
+        <p className="text-xs text-slate-500 mt-1">
+          This permanently deletes {count > 1 ? 'these leads' : 'this lead'} from the cloud D1 database too — timeline history, call logs and assignments are removed. This cannot be undone.
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+        {/* ===== DESKTOP MODAL ===== */}
+        <div className="hidden md:flex bg-white rounded-2xl w-full max-w-md flex-col shadow-2xl av-zoom-in overflow-hidden">
+          <div className="p-5 border-b border-slate-100 shrink-0">
+            <h2 className="text-lg font-bold text-slate-800">Confirm Delete</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto av-scroll-thin p-5">{body}</div>
+          <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+            <button onClick={onClose} className="px-5 py-2 rounded-lg font-medium text-sm text-slate-600 hover:bg-slate-200 transition">Cancel</button>
+            <button onClick={handle} disabled={busy}
+              className="px-5 py-2 rounded-lg font-bold text-sm text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-60">
+              {busy ? 'Deleting…' : 'Delete Permanently'}
+            </button>
+          </div>
+        </div>
+
+        {/* ===== MOBILE BOTTOM SHEET ===== */}
+        <div className="md:hidden bg-white w-full max-h-[85vh] rounded-t-2xl flex flex-col shadow-2xl av-slide-up overflow-hidden">
+          <div className="pt-2.5 pb-1 flex justify-center shrink-0">
+            <div className="w-10 h-1 rounded-full bg-slate-300" />
+          </div>
+          <div className="px-4 pb-3 shrink-0">
+            <h2 className="text-base font-bold text-slate-800">Confirm Delete</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto av-scroll-thin px-4 pb-4">{body}</div>
+          <div className="px-4 py-3 border-t border-slate-100 bg-slate-50 flex gap-3 shrink-0">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl font-medium text-sm text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition">Cancel</button>
+            <button onClick={handle} disabled={busy}
+              className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-60">
+              {busy ? 'Deleting…' : 'Delete Permanently'}
+            </button>
+          </div>
+        </div>
+      </div>
     </ModalPortal>
   );
 }

@@ -164,6 +164,18 @@ export const api = {
   countTable: (table: string) =>
     request<{ count: number }>(`/api/sync/count?table=${encodeURIComponent(table)}`),
 
+  // ---- push notifications (callback reminders) ----
+  pushSubscribe: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
+    request<{ ok: boolean }>('/api/push/subscribe', { method: 'POST', body: sub }),
+  pushUnsubscribe: (endpoint: string) =>
+    request<{ ok: boolean }>('/api/push/unsubscribe', { method: 'POST', body: { endpoint } }),
+  pushReminderUpsert: (body: { leadId: number; customerId: number; customerName: string; product?: string; followupDate?: string; followupTime?: string; remindAt: string }) =>
+    request<{ ok: boolean }>('/api/push/reminders', { method: 'POST', body }),
+  pushReminderCancel: (leadId: number) =>
+    request<{ ok: boolean }>(`/api/push/reminders?leadId=${leadId}`, { method: 'DELETE' }),
+  pushReminderList: () =>
+    request<{ reminders: { leadId: number; customerId: number; customerName: string; product?: string; followupDate?: string; followupTime?: string; remindAt: string }[] }>('/api/push/reminders', { method: 'GET' }),
+
   // ---- fast order-status sync (admin change reaches telecaller in ~2s) ----
   orderStatus: (since?: string) => {
     let q = '/api/orders/status';

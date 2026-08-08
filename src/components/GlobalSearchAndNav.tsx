@@ -12,12 +12,14 @@ import { NotificationBell } from './NotificationBell';
 import { Customer360Profile } from './Customer360Profile';
 import { format } from 'date-fns';
 import { ModalPortal } from './ModalPortal';
+import { Popover } from './Popover';
 
 export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchAnchorRef = useRef<HTMLDivElement>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
 
   const followups = useLiveQuery(() => db.leads.filter(l => l.status === 'Followup' || l.status === 'Callback').toArray()) || [];
@@ -203,7 +205,7 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
         >
           <Menu size={20} />
         </button>
-        <div className="relative w-full min-w-0 sm:w-72 lg:w-96">
+        <div className="relative w-full min-w-0 sm:w-72 lg:w-96" ref={searchAnchorRef}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
@@ -219,36 +221,43 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
               className="pl-9 pr-3.5 py-1.5 text-sm border border-slate-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
             />
           </div>
-
-          {isSearchOpen && searchTerm.length >= 3 && (
-            <div className="absolute top-full mt-2 w-[500px] max-w-[calc(100vw-1.5rem)] right-0 sm:right-auto bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden max-h-[400px] overflow-y-auto">
-              <div className="p-2 border-b border-slate-100 bg-slate-50 text-xs font-bold text-slate-500">SEARCH RESULTS</div>
-              {results.length > 0 ? (
-                results.map((res, idx) => (
-                  <div 
-                    key={idx} 
-                    onClick={() => handleResultClick(res)}
-                    className="p-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer flex justify-between items-center"
-                  >
-                    <div>
-                      <div className="font-bold text-slate-800 text-sm">
-                        {res.type === 'Customer' ? res.data.name : res.data.orderId}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {res.type === 'Customer' ? res.data.mobile : `Tracking: ${res.data.trackingId || 'N/A'}`}
-                      </div>
-                    </div>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
-                      {res.type}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <div className="p-6 text-center text-slate-500 text-sm">No results found for "{searchTerm}"</div>
-              )}
-            </div>
-          )}
         </div>
+
+        {isSearchOpen && searchTerm.length >= 3 && (
+          <Popover
+            anchor={searchAnchorRef.current}
+            open={isSearchOpen && searchTerm.length >= 3}
+            onClose={() => setIsSearchOpen(false)}
+            width={500}
+            closeOnScroll
+            className="max-h-[400px]"
+          >
+            <div className="p-2 border-b border-slate-100 bg-slate-50 text-xs font-bold text-slate-500">SEARCH RESULTS</div>
+            {results.length > 0 ? (
+              results.map((res, idx) => (
+                <div 
+                  key={idx} 
+                  onClick={() => handleResultClick(res)}
+                  className="p-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer flex justify-between items-center"
+                >
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm">
+                      {res.type === 'Customer' ? res.data.name : res.data.orderId}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {res.type === 'Customer' ? res.data.mobile : `Tracking: ${res.data.trackingId || 'N/A'}`}
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded">
+                    {res.type}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="p-6 text-center text-slate-500 text-sm">No results found for "{searchTerm}"</div>
+            )}
+          </Popover>
+        )}
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           <NotificationBell />
@@ -257,10 +266,6 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
           </div>
         </div>
       </div>
-
-      {isSearchOpen && (
-        <div className="fixed inset-0 z-0" onClick={() => setIsSearchOpen(false)}></div>
-      )}
 
       {selectedCustomerId && (
         <Customer360Profile 

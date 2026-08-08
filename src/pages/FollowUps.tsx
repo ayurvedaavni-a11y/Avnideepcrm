@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from 'react';
+import { useState, useMemo, memo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SpaceLFollowup } from '../db/db';
 import Phone from 'lucide-react/dist/esm/icons/phone'
@@ -29,6 +29,7 @@ import { useDateFilter } from '../context/DateFilterContext';
 import { useAuth } from '../context/AuthContext';
 import { TELECALLER_STATUSES, statusLabel } from '../db/lifecycle';
 import { ModalPortal } from '../components/ModalPortal';
+import { Popover } from '../components/Popover';
 
 // ========== Types ==========
 type PipelineStage = 'all' | 'overdue' | 'due-today' | 'scheduled' | 'callback' | 're-engaged' | 'hot' | 'converted' | 'closed';
@@ -246,6 +247,12 @@ export function FollowUps() {
         agentName: 'Admin',
         createdAt: now,
       });
+
+      // Web Push: rescheduling replaces the old server reminder (one per lead).
+      try {
+        const { scheduleLeadReminder } = await import('../db/pushClient');
+        void scheduleLeadReminder({ ...lead, status: 'Followup', followupDate: newDate, followupTime: newTime });
+      } catch { /* push best-effort */ }
 
       setSnoozeModal(null);
       toast.success('Follow-up snoozed successfully');
@@ -474,6 +481,7 @@ function PipelineSection({ tab, items, onViewTimeline, onStatusChange, onSnooze,
 // ========== Lead Card ==========
 const SpaceLLeadCard = memo(function SpaceLLeadCard({ lead, customer, stage, compact, followups, onViewTimeline, onStatusChange, onSnooze, onViewHistory, onStatusModal }: any) {
   const [showActions, setShowActions] = useState(false);
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null);
   const today = getTodayStr();
   const isOverdue = lead.followupDate && lead.followupDate < today && (lead.status === 'Followup' || lead.status === 'Callback');
   const isDueToday = lead.followupDate === today && (lead.status === 'Followup' || lead.status === 'Callback');
@@ -584,31 +592,36 @@ const SpaceLLeadCard = memo(function SpaceLLeadCard({ lead, customer, stage, com
             {!compact && (
               <div className="relative">
                 <button
+                  ref={actionsTriggerRef}
                   onClick={() => setShowActions(!showActions)}
                   className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 transition"
                 >
                   <MoreHorizontal size={16} />
                 </button>
-                {showActions && (
-                  <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-200 z-20 w-48 py-1">
-                    <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                      onClick={() => { onStatusChange('Not Interested', { notes: '' }); setShowActions(false); }}>
-                      <X size={14} className="text-red-500" /> Not Interested
-                    </button>
-                    <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                      onClick={() => { onSnooze(); setShowActions(false); }}>
-                      <Clock size={14} className="text-amber-500" /> Snooze / Reschedule
-                    </button>
-                    <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                      onClick={() => { onStatusModal(); setShowActions(false); }}>
-                      <RotateCcw size={14} className="text-purple-500" /> Change Status
-                    </button>
-                    <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                      onClick={() => { onViewHistory(); setShowActions(false); }}>
-                      <History size={14} className="text-blue-500" /> Follow-up History
-                    </button>
-                  </div>
-                )}
+                <Popover
+                  anchor={actionsTriggerRef.current}
+                  open={showActions}
+                  onClose={() => setShowActions(false)}
+                  width={192}
+                  className="py-1"
+                >
+                  <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    onClick={() => { onStatusChange('Not Interested', { notes: '' }); setShowActions(false); }}>
+                    <X size={14} className="text-red-500" /> Not Interested
+                  </button>
+                  <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    onClick={() => { onSnooze(); setShowActions(false); }}>
+                    <Clock size={14} className="text-amber-500" /> Snooze / Reschedule
+                  </button>
+                  <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    onClick={() => { onStatusModal(); setShowActions(false); }}>
+                    <RotateCcw size={14} className="text-purple-500" /> Change Status
+                  </button>
+                  <button className="w-full px-4 py-2.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                    onClick={() => { onViewHistory(); setShowActions(false); }}>
+                    <History size={14} className="text-blue-500" /> Follow-up History
+                  </button>
+                </Popover>
               </div>
             )}
           </div>

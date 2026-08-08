@@ -41,6 +41,9 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         cleanupOutdatedCaches: true,
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
+        // Web Push handlers (callback reminders) — injected into the generated
+        // service worker. Lives in public/ so it's copied to dist root.
+        importScripts: ["push-handler.js"],
       },
       devOptions: { enabled: false },
     }),

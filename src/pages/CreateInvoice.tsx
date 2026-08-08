@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, Customer, Product } from '../db/db';
 import FilePlus from 'lucide-react/dist/esm/icons/file-plus'
@@ -11,6 +11,7 @@ import { createManualInvoice, downloadInvoicePDF } from '../db/invoiceEngine';
 import { getGSTConfig } from '../db/settingsEngine';
 import { useNavigate } from 'react-router-dom';
 import { safeMoney } from '../lib/safe';
+import { Popover } from '../components/Popover';
 
 interface LineItem {
   productId?: number;
@@ -40,6 +41,8 @@ export function CreateInvoice() {
   const products = useLiveQuery(() => db.products.filter(p => p.isActive !== false).toArray()) || [];
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const customerAnchorRef = useRef<HTMLDivElement>(null);
+  const productAnchorRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [items, setItems] = useState<LineItem[]>([{ ...EMPTY_ITEM }]);
   const [productQueries, setProductQueries] = useState<string[]>(['']);
   const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
@@ -180,7 +183,7 @@ export function CreateInvoice() {
             <button onClick={() => setSelectedCustomer(null)} className="text-sm text-red-600 font-bold">Change</button>
           </div>
         ) : (
-          <div className="relative">
+          <div className="relative" ref={customerAnchorRef}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               id="invoice-customer-search"
@@ -193,16 +196,21 @@ export function CreateInvoice() {
               onChange={(e) => setCustomerSearch(e.target.value)}
               className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg w-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            {customerSearch && filteredCustomers.length > 0 && (
-              <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
-                {filteredCustomers.map(c => (
-                  <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); }} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100">
-                    <div className="font-bold text-slate-800 text-sm">{c.name}</div>
-                    <div className="text-xs text-slate-500">{c.mobile}</div>
-                  </button>
-                ))}
-              </div>
-            )}
+            <Popover
+              anchor={customerAnchorRef.current}
+              open={!!customerSearch && filteredCustomers.length > 0}
+              onClose={() => { /* stays open while typing */ }}
+              width={customerAnchorRef.current?.offsetWidth || 360}
+              closeOnScroll
+              className="max-h-60"
+            >
+              {filteredCustomers.map(c => (
+                <button key={c.id} onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); }} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100">
+                  <div className="font-bold text-slate-800 text-sm">{c.name}</div>
+                  <div className="text-xs text-slate-500">{c.mobile}</div>
+                </button>
+              ))}
+            </Popover>
           </div>
         )}
       </div>
@@ -227,7 +235,7 @@ export function CreateInvoice() {
             return (
               <div key={idx} className="border border-slate-200 rounded-xl p-4 space-y-3 relative">
                 <div className="grid grid-cols-1 md:grid-cols-[1.2fr_120px_120px_120px_120px_44px] gap-3 items-start">
-                  <div className="relative">
+                  <div className="relative" ref={(el) => { productAnchorRefs.current[idx] = el; }}>
                     <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Product</label>
                     <input
                       value={productQueries[idx] || ''}
@@ -242,16 +250,21 @@ export function CreateInvoice() {
                       autoComplete="search"
                       placeholder="Search by product, SKU, HSN"
                     />
-                    {openDropdownIndex === idx && suggestions.length > 0 && (
-                      <div className="absolute top-full mt-1 left-0 right-0 bg-white border border-slate-200 rounded-lg shadow-lg z-30 max-h-56 overflow-y-auto">
-                        {suggestions.map(p => (
-                          <button key={p.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => handleSelectProduct(idx, p)} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0">
-                            <div className="font-bold text-slate-800 text-sm">{p.name}</div>
-                            <div className="text-xs text-slate-500">SKU: {p.sku} • HSN: {p.hsnCode} • GST: {p.gstRate}% • Stock: {p.stockQty}</div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    <Popover
+                      anchor={productAnchorRefs.current[idx]}
+                      open={openDropdownIndex === idx && suggestions.length > 0}
+                      onClose={() => { /* stays open while typing */ }}
+                      width={productAnchorRefs.current[idx]?.offsetWidth || 300}
+                      closeOnScroll
+                      className="max-h-56"
+                    >
+                      {suggestions.map(p => (
+                        <button key={p.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => handleSelectProduct(idx, p)} className="w-full text-left p-3 hover:bg-slate-50 border-b border-slate-100 last:border-b-0">
+                          <div className="font-bold text-slate-800 text-sm">{p.name}</div>
+                          <div className="text-xs text-slate-500">SKU: {p.sku} • HSN: {p.hsnCode} • GST: {p.gstRate}% • Stock: {p.stockQty}</div>
+                        </button>
+                      ))}
+                    </Popover>
                     {item.sku && <div className="text-[10px] text-slate-400 mt-1">SKU: {item.sku}</div>}
                   </div>
 
