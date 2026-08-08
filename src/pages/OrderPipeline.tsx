@@ -1011,8 +1011,8 @@ function OrderPipelineContent() {
               {pipelineOrders.length} active · {shippedPlus.length} Shipped+ (Logistics) · {leadsReady.length} leads ready to sync
             </p>
           </div>
-          <div className="flex items-center gap-2.5">
-            <div className="relative">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
               <input
                 id="order-search"
@@ -1023,7 +1023,7 @@ function OrderPipelineContent() {
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 aria-label="Search orders"
-                className="pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm w-64 lg:w-80 bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition placeholder:text-slate-400"
+                className="pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm w-full sm:w-64 lg:w-80 bg-white shadow-sm outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-400 transition placeholder:text-slate-400"
               />
             </div>
             <button onClick={handleBulkSyncLeads}
@@ -1043,7 +1043,9 @@ function OrderPipelineContent() {
           <StatCard label="Delivered Today" value={stats.deliveredToday} icon={Check} iconClass="bg-emerald-50 text-emerald-600" />
           <StatCard label="Cancelled" value={stats.cancelled} icon={XCircle} iconClass="bg-red-50 text-red-600" />
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        {/* Secondary KPI row — hidden on mobile so the order cards get the
+            full viewport; visible sm+. */}
+        <div className="hidden sm:grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           <StatCard label="Pipeline COD Value" value={stats.codPipeline} icon={Wallet} iconClass="bg-blue-50 text-blue-600" format="compact" />
           <StatCard label="Revenue (Delivered)" value={stats.revenue} icon={TrendingUp} iconClass="bg-emerald-50 text-emerald-600" format="compact" />
           <StatCard label="Average Order Value" value={stats.aov} icon={Zap} iconClass="bg-purple-50 text-purple-600" format="currency" />

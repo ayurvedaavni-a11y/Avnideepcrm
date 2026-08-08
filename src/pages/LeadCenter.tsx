@@ -253,19 +253,50 @@ export function LeadCenter() {
     return filteredLeads.slice(start, start + PAGE_SIZE);
   }, [filteredLeads, safePage]);
 
+  // ---------- shared row handlers (desktop columns + mobile cards) ----------
+  // Single source of truth so desktop and mobile behavior can never diverge.
+  const handlePriorityChange = useCallback(async (lead: any, newPriority: string) => {
+    await db.leads.update(lead.id!, { priority: newPriority as any, updatedAt: new Date().toISOString() });
+    await db.timelineLogs.add({
+      customerId: lead.customerId, entityType: 'Lead', entityId: lead.id,
+      action: 'Priority updated to ' + newPriority,
+      notes: 'Priority changed from ' + (lead.priority || 'None') + ' to ' + newPriority,
+      agentName: 'Admin', createdAt: new Date().toISOString(),
+    });
+    toast.success('Priority updated to ' + newPriority);
+  }, []);
+
+  const handleAssign = useCallback(async (lead: any, val: string) => {
+    try {
+      if (!val) {
+        await removeAssignment(lead.id);
+        toast.success('Assignment removed - lead back to the pool');
+      } else {
+        const tc = telecallers.find(t => t.id === val);
+        if (tc) {
+          await assignLead(lead.id, tc);
+          toast.success('Assigned to ' + tc.full_name);
+        }
+      }
+    } catch (err: any) {
+      toast.error('Assignment failed: ' + (err?.message || 'Unknown error'));
+    }
+  }, [telecallers]);
+
+  const handleDeleteLead = useCallback(async (lead: any) => {
+    if (!window.confirm(`Permanently delete lead #${lead.id} from the cloud too?`)) return;
+    try {
+      const cloudIds = await resolveCloudIds([lead.id]);
+      if (cloudIds.length) await api.deleteBulk('leads', cloudIds);
+      await db.leads.delete(lead.id);
+      toast.success('Lead deleted');
+    } catch (err: any) {
+      toast.error('Delete failed: ' + (err?.message || 'Unknown error'));
+    }
+  }, []);
+
   // VirtualTable column definitions
   const leadColumns: VirtualTableColumn<any>[] = useMemo(() => {
-    const handlePriorityChange = async (lead: any, newPriority: string) => {
-      await db.leads.update(lead.id!, { priority: newPriority as any, updatedAt: new Date().toISOString() });
-      await db.timelineLogs.add({
-        customerId: lead.customerId, entityType: 'Lead', entityId: lead.id,
-        action: 'Priority updated to ' + newPriority,
-        notes: 'Priority changed from ' + (lead.priority || 'None') + ' to ' + newPriority,
-        agentName: 'Admin', createdAt: new Date().toISOString(),
-      });
-      toast.success('Priority updated to ' + newPriority);
-    };
-
     return [
       {
         key: 'select',
@@ -369,23 +400,7 @@ export function LeadCenter() {
           return (
             <select
               value={lead.assignedTo || ''}
-              onChange={async (e) => {
-                const val = e.target.value;
-                try {
-                  if (!val) {
-                    await removeAssignment(lead.id);
-                    toast.success('Assignment removed - lead back to the pool');
-                  } else {
-                    const tc = telecallers.find(t => t.id === val);
-                    if (tc) {
-                      await assignLead(lead.id, tc);
-                      toast.success('Assigned to ' + tc.full_name);
-                    }
-                  }
-                } catch (err: any) {
-                  toast.error('Assignment failed: ' + (err?.message || 'Unknown error'));
-                }
-              }}
+              onChange={(e) => handleAssign(lead, e.target.value)}
               className="px-2 py-1.5 rounded-lg text-xs font-bold outline-none border border-slate-200 cursor-pointer shadow-sm bg-slate-50 text-slate-700 w-full"
             >
               <option value="">— Unassigned —</option>
@@ -439,18 +454,7 @@ export function LeadCenter() {
               </button>
               {isAdmin && (
                 <button
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (!window.confirm(`Permanently delete lead #${lead.id} from the cloud too?`)) return;
-                    try {
-                      const cloudIds = await resolveCloudIds([lead.id]);
-                      if (cloudIds.length) await api.deleteBulk('leads', cloudIds);
-                      await db.leads.delete(lead.id);
-                      toast.success('Lead deleted');
-                    } catch (err: any) {
-                      toast.error('Delete failed: ' + (err?.message || 'Unknown error'));
-                    }
-                  }}
+                  onClick={(e) => { e.stopPropagation(); void handleDeleteLead(lead); }}
                   title="Delete Lead (admin)"
                   className="p-2 rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition"
                 >
@@ -527,25 +531,26 @@ export function LeadCenter() {
         )
       },
     ];
-  }, [customerMap, mobileCountMap, handleStatusChange, isAdmin, telecallers, selectedIds]);
+  }, [customerMap, mobileCountMap, handleStatusChange, isAdmin, telecallers, selectedIds, handlePriorityChange, handleAssign, handleDeleteLead]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-3 sm:space-y-4 animate-in fade-in duration-300">
+      {/* Compact page header — title stacks above the action button on mobile */}
       <div className="flex justify-between flex-wrap gap-2 items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Lead Center</h1>
-          <p className="text-slate-500 text-sm">Manage, filter and convert pipeline opportunities.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Lead Center</h1>
+          <p className="text-slate-500 text-xs sm:text-sm hidden sm:block">Manage, filter and convert pipeline opportunities.</p>
         </div>
         <button 
           onClick={() => setIsFormOpen(true)}
-          className="bg-blue-600 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition shadow-sm font-semibold"
+          className="bg-blue-600 text-white px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl flex items-center gap-2 hover:bg-blue-700 transition shadow-sm font-semibold text-sm sm:text-base"
         >
-          <Plus size={20} /> Add New Lead
+          <Plus size={18} /> Add New Lead
         </button>
       </div>
 
-      {/* Tabs Filter Bar */}
-      <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-2">
+      {/* Tabs Filter Bar — horizontal scroll on mobile, wraps on desktop */}
+      <div className="bg-white p-1.5 sm:p-2 rounded-xl border border-slate-200 shadow-sm flex gap-1.5 overflow-x-auto av-scroll-none md:flex-wrap md:overflow-visible">
         {TABS.map(tab => (
           <TabButtonWrapper
             key={tab.key}
@@ -558,9 +563,9 @@ export function LeadCenter() {
         ))}
       </div>
 
-      {/* Search + Pagination Controls */}
-      <div className="flex items-center justify-between">
-        <div className="relative flex-1 max-w-sm">
+      {/* Search + Pagination Controls — stacks on mobile, search full width */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className="relative flex-1 sm:max-w-sm w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             id="lead-search"
@@ -574,10 +579,10 @@ export function LeadCenter() {
             className="w-full pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
-        <div className="flex items-center gap-3 text-sm text-slate-500">
-          <span>
+        <div className="flex items-center justify-between sm:justify-end gap-3 text-sm text-slate-500">
+          <span className="text-xs sm:text-sm whitespace-nowrap">
             {filteredLeads.length} lead{filteredLeads.length !== 1 ? 's' : ''}
-            {mobileSearch && <span className="text-blue-600"> matching "{mobileSearch}"</span>}
+            {mobileSearch && <span className="text-blue-600 hidden sm:inline"> matching "{mobileSearch}"</span>}
           </span>
           {totalPages > 1 && (
             <div className="flex items-center gap-1">
@@ -603,32 +608,32 @@ export function LeadCenter() {
         </div>
       </div>
 
-      {/* Filters + Bulk Assign */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-2">
+      {/* Filters + Bulk Assign — 2-col grid on mobile, inline flex on desktop */}
+      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-sm grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2">
         {isAdmin && (
           <select id="lead-filter-telecaller" name="lead-filter-telecaller" aria-label="Filter by telecaller" value={filterTelecaller} onChange={(e) => { setFilterTelecaller(e.target.value); setPage(0); }}
-            className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none">
+            className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none w-full sm:w-auto">
             <option value="">All Telecallers</option>
             {telecallers.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
           </select>
         )}
         <select id="lead-filter-state" name="lead-filter-state" aria-label="Filter by state" value={filterState} onChange={(e) => { setFilterState(e.target.value); setPage(0); }}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none">
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none w-full sm:w-auto">
           <option value="">All States</option>
           {Array.from(new Set(allCustomers.map(c => c.state).filter(Boolean))).sort().map(st => <option key={st} value={st}>{st}</option>)}
         </select>
         <select id="lead-filter-status" name="lead-filter-status" aria-label="Filter by status" value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(0); }}
-          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none">
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none w-full sm:w-auto">
           <option value="">All Statuses</option>
           {(isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).map(st => <option key={st} value={st}>{statusLabel(st)}</option>)}
         </select>
         <input id="lead-filter-product" name="lead-filter-product" aria-label="Filter by product" value={filterProduct} onChange={(e) => { setFilterProduct(e.target.value); setPage(0); }}
-          placeholder="Filter by product..." className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none w-44" />
+          placeholder="Filter by product..." className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none w-full sm:w-44 col-span-2 sm:col-span-1" />
         {isAdmin && selectedIds.size > 0 && (
-          <>
+          <div className="col-span-2 sm:col-span-1 flex items-center gap-1.5 sm:ml-auto">
             <button onClick={() => setBulkAssignLead({ leadIds: Array.from(selectedIds) })}
-              className="ml-auto inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition">
-              <UserPlus size={16} /> Bulk Assign ({selectedIds.size})
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition">
+              <UserPlus size={16} /> Assign ({selectedIds.size})
             </button>
             <button
               onClick={async () => {
@@ -647,26 +652,65 @@ export function LeadCenter() {
               }}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition"
             >
-              <Trash2 size={16} /> Bulk Delete ({selectedIds.size})
+              <Trash2 size={16} /> Delete ({selectedIds.size})
             </button>
             <button onClick={() => setSelectedIds(new Set())} className="px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100">Clear</button>
-          </>
+          </div>
         )}
       </div>
 
-      {/* Leads Table — Virtual Scrolling */}
-      <VirtualTable
-        data={paginatedLeads}
-        height={'min(520px, calc(100dvh - 320px))'}
-        estimateSize={72}
-        emptyState={
-          <div className="flex items-center justify-center py-12 text-slate-500">
+      {/* ===== DESKTOP: full-featured virtual table (hidden on mobile) ===== */}
+      <div className="hidden md:block">
+        <VirtualTable
+          data={paginatedLeads}
+          height={'max(320px, calc(100dvh - 340px))'}
+          estimateSize={72}
+          emptyState={
+            <div className="flex items-center justify-center py-12 text-slate-500">
+              No leads match this filter.
+            </div>
+          }
+          rowClassName={() => 'border-b border-slate-100 hover:bg-slate-50 transition-colors'}
+          columns={leadColumns}
+        />
+      </div>
+
+      {/* ===== MOBILE: thumb-friendly lead cards (desktop table is hidden) ===== */}
+      <div className="md:hidden space-y-2.5">
+        {paginatedLeads.length === 0 && (
+          <div className="flex items-center justify-center py-12 text-slate-500 bg-white rounded-xl border border-slate-200">
             No leads match this filter.
           </div>
-        }
-        rowClassName={() => 'border-b border-slate-100 hover:bg-slate-50 transition-colors'}
-        columns={leadColumns}
-      />
+        )}
+        {paginatedLeads.map((lead: any) => {
+          const customer = customerMap.get(lead.customerId);
+          const duplicateCount = customer?.mobile ? (mobileCountMap.get(customer.mobile) || 0) : 0;
+          return (
+            <MobileLeadCard
+              key={lead.id}
+              lead={lead}
+              customer={customer}
+              duplicateCount={duplicateCount}
+              isAdmin={isAdmin}
+              selected={selectedIds.has(lead.id)}
+              telecallers={telecallers}
+              onToggleSelect={(checked: boolean) => {
+                setSelectedIds(prev => {
+                  const next = new Set(prev);
+                  if (checked) next.add(lead.id); else next.delete(lead.id);
+                  return next;
+                });
+              }}
+              onStatusChange={(s: any) => handleStatusChange(lead, lead.customerId, s)}
+              onPriorityChange={(p: string) => handlePriorityChange(lead, p)}
+              onAssign={(tcId: string) => handleAssign(lead, tcId)}
+              onCallLog={() => setCallLogLead({ lead, customer })}
+              onDetails={() => setSelectedCustomerId(lead.customerId)}
+              onDelete={() => handleDeleteLead(lead)}
+            />
+          );
+        })}
+      </div>
 
       {/* Pagination bottom bar */}
       {totalPages > 1 && (
@@ -785,7 +829,7 @@ const TabButton = React.memo(function TabButton({ label, count, active, onClick 
   return (
     <button 
       onClick={onClick}
-      className={`px-4 py-2 rounded-lg font-bold text-sm transition-all duration-200 flex items-center gap-2 ${
+      className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold text-xs sm:text-sm transition-all duration-200 flex items-center gap-2 shrink-0 whitespace-nowrap ${
         active 
           ? 'bg-slate-900 text-white shadow-md' 
           : 'text-slate-600 hover:bg-slate-100'
@@ -814,6 +858,157 @@ const TabButtonWrapper = React.memo(function TabButtonWrapper({ tab, count, acti
   
   return <TabButton label={tab.label} count={count} active={active} onClick={onClick} />;
 });
+
+// =====================================================================
+// MobileLeadCard — thumb-friendly lead card (rendered ONLY on < md screens;
+// desktop uses the full VirtualTable). Mirrors MobileOrderCard aesthetics.
+// =====================================================================
+function MobileLeadCard({ lead, customer, duplicateCount, isAdmin, selected, telecallers, onToggleSelect, onStatusChange, onPriorityChange, onAssign, onCallLog, onDetails, onDelete }: {
+  lead: any;
+  customer: any;
+  duplicateCount: number;
+  isAdmin: boolean;
+  selected: boolean;
+  telecallers: TeamProfile[];
+  onToggleSelect: (checked: boolean) => void;
+  onStatusChange: (status: any) => void;
+  onPriorityChange: (priority: string) => void;
+  onAssign: (tcId: string) => Promise<void>;
+  onCallLog: () => void;
+  onDetails: () => void;
+  onDelete: () => Promise<void>;
+}) {
+  const mobile = customer?.mobile;
+  return (
+    <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+      {/* Top: name + mobile + selection (admin) */}
+      <div className="px-3.5 pt-3 pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex items-start gap-2">
+            {isAdmin && (
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={(e) => onToggleSelect(e.target.checked)}
+                className="w-4 h-4 accent-blue-600 mt-0.5 shrink-0"
+                aria-label="Select lead"
+              />
+            )}
+            <div className="min-w-0">
+              <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate cursor-pointer hover:text-blue-600" onClick={onDetails}>
+                {customer?.name || 'Unknown'}
+              </h4>
+              <p className="text-xs text-slate-500 font-medium mt-0.5">{customer?.mobile || '—'}</p>
+              {customer?.riskLevel === 'Fake' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 bg-red-100 text-red-700 text-[10px] font-bold rounded">
+                  <AlertTriangle size={10} /> Fake
+                </span>
+              )}
+              {duplicateCount > 1 && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 bg-orange-100 text-orange-700 rounded-full text-[10px] font-bold">
+                  <Copy size={10} /> {duplicateCount}x duplicate
+                </span>
+              )}
+            </div>
+          </div>
+          {/* Status select — colored like desktop table */}
+          <select
+            value={lead.status || ''}
+            onChange={(e) => onStatusChange(e.target.value)}
+            aria-label="Change lead status"
+            className={`px-2 py-1.5 rounded-lg text-[11px] font-bold outline-none border border-slate-200 cursor-pointer shadow-sm shrink-0 max-w-[130px] ${
+              lead.status === 'New Lead' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''
+            } ${lead.status === 'Interested' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : ''}
+              ${lead.status === 'Ring' ? 'bg-purple-50 text-purple-700 border-purple-200' : ''}
+              ${lead.status === 'Followup' || lead.status === 'Callback' ? 'bg-amber-50 text-amber-700 border-amber-200' : ''}
+              ${lead.status === 'Order Booked' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : ''}
+              ${lead.status === 'Not Interested' ? 'bg-slate-100 text-slate-600 border-slate-300' : ''}
+              ${lead.status === 'Fake Lead' ? 'bg-red-50 text-red-700 border-red-200' : ''}`}
+          >
+            {(isAdmin ? ADMIN_STATUSES : TELECALLER_STATUSES).map(st => (
+              <option key={st} value={st}>{statusLabel(st)}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Product + amount */}
+        <div className="flex items-center justify-between gap-2 mt-2">
+          <p className="text-[13px] text-slate-600 truncate min-w-0">{lead.product || '—'}</p>
+          <span className="font-black text-slate-900 text-sm shrink-0">₹{lead.expectedAmount || 0}</span>
+        </div>
+
+        {/* Assigned + priority (admin editable) */}
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-2">
+          {isAdmin ? (
+            <select
+              value={lead.assignedTo || ''}
+              onChange={(e) => onAssign(e.target.value)}
+              aria-label="Assign telecaller"
+              className="px-2 py-1 rounded-lg text-[10px] font-bold outline-none border border-slate-200 cursor-pointer shadow-sm bg-slate-50 text-slate-700"
+            >
+              <option value="">— Unassigned —</option>
+              {telecallers.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
+            </select>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+              <UserPlus size={10} /> {lead.assignedAgent || 'Unassigned'}
+            </span>
+          )}
+          <select
+            value={lead.priority || 'Medium'}
+            onChange={(e) => onPriorityChange(e.target.value)}
+            aria-label="Change priority"
+            className={`px-2 py-1 rounded-lg text-[10px] font-bold outline-none border border-slate-200 cursor-pointer shadow-sm ${
+              lead.priority === 'High' ? 'bg-red-50 text-red-700 border-red-200' : ''
+            } ${lead.priority === 'Medium' ? 'bg-amber-50 text-amber-700 border-amber-200' : ''}
+              ${lead.priority === 'Low' ? 'bg-blue-50 text-blue-700 border-blue-200' : ''}`}
+          >
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+          {(lead.status === 'Followup' || lead.status === 'Callback') && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-bold">
+              {lead.followupDate ? safeFormat(lead.followupDate, 'dd MMM') : 'Pending'}
+              {lead.followupTime ? ` · ${lead.followupTime}` : ''}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Thumb-friendly action row — Call / WhatsApp / Log Call / Details */}
+      <div className="px-3 pb-3 grid grid-cols-4 gap-2">
+        <a href={`tel:${mobile}`} aria-disabled={!mobile}
+          className={`flex flex-col items-center gap-0.5 py-2.5 rounded-xl bg-green-50 text-green-700 border border-green-100 active:scale-95 transition-transform ${!mobile ? 'pointer-events-none opacity-40' : ''}`}>
+          <Phone size={18} />
+          <span className="text-[10px] font-bold">Call</span>
+        </a>
+        <a href={`https://wa.me/91${mobile}`} target="_blank" rel="noreferrer"
+          className={`flex flex-col items-center gap-0.5 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 active:scale-95 transition-transform ${!mobile ? 'pointer-events-none opacity-40' : ''}`}>
+          <MessageCircle size={18} />
+          <span className="text-[10px] font-bold">WhatsApp</span>
+        </a>
+        <button onClick={onCallLog} className="flex flex-col items-center gap-0.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 active:scale-95 transition-transform">
+          <PhoneCall size={18} />
+          <span className="text-[10px] font-bold">Log Call</span>
+        </button>
+        <button onClick={onDetails} className="flex flex-col items-center gap-0.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 active:scale-95 transition-transform">
+          <Eye size={18} />
+          <span className="text-[10px] font-bold">Details</span>
+        </button>
+      </div>
+
+      {/* Admin: delete (small, below actions) */}
+      {isAdmin && (
+        <div className="px-3 pb-2.5 -mt-1 flex justify-end">
+          <button onClick={onDelete} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold text-red-600 bg-red-50 border border-red-100 active:scale-95 transition-transform">
+            <Trash2 size={11} /> Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // LeadRow removed — now handled inline in VirtualTable columns
 

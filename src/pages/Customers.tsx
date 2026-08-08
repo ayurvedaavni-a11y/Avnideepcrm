@@ -374,25 +374,104 @@ export function Customers() {
         )}
       </div>
 
-      {/* Customers Table — Virtual Scrolling */}
-      <VirtualTable
-        data={paginatedCustomers}
-        height={580}
-        estimateSize={72}
-        emptyState={
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <Users size={40} className="text-slate-300 mb-3" />
-            <p className="font-medium">No customers found</p>
-            <p className="text-xs mt-1">
-              {searchTerm
-                ? 'No customers match your search criteria.'
-                : 'Customers will appear once leads and orders are created.'}
-            </p>
+      {/* ===== DESKTOP: full virtual table (hidden on mobile) ===== */}
+      <div className="hidden md:block">
+        <VirtualTable
+          data={paginatedCustomers}
+          height={'max(320px, calc(100dvh - 340px))'}
+          estimateSize={72}
+          emptyState={
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+              <Users size={40} className="text-slate-300 mb-3" />
+              <p className="font-medium">No customers found</p>
+              <p className="text-xs mt-1">
+                {searchTerm
+                  ? 'No customers match your search criteria.'
+                  : 'Customers will appear once leads and orders are created.'}
+              </p>
+            </div>
+          }
+          columns={customerColumns}
+          rowClassName={() => 'border-b border-slate-100 hover:bg-slate-50 transition-colors'}
+        />
+      </div>
+
+      {/* ===== MOBILE: customer cards (desktop table hidden) ===== */}
+      <div className="md:hidden space-y-2.5">
+        {paginatedCustomers.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-white rounded-xl border border-slate-200">
+            <Users size={36} className="text-slate-300 mb-2" />
+            <p className="font-medium text-sm">No customers found</p>
           </div>
-        }
-        columns={customerColumns}
-        rowClassName={() => 'border-b border-slate-100 hover:bg-slate-50 transition-colors'}
-      />
+        )}
+        {paginatedCustomers.map((customer: any) => {
+          const ot = orderTotals.get(customer.id!);
+          const totalOrders = ot?.total || customer.totalOrders || 0;
+          const totalCod = ot?.totalCod || customer.totalSpend || 0;
+          const delivered = ot?.delivered || customer.delivered || 0;
+          const rto = ot?.rto || customer.rto || 0;
+          const cancelled = ot?.cancelled || customer.cancelled || 0;
+          const type = totalCod >= 50000 ? 'vip' : totalOrders >= 2 ? 'repeat' : 'new';
+          const firstDate = ot?.firstDate || customer.createdAt;
+          const lastDate = ot?.lastDate || customer.lastOrderDate || null;
+          return (
+            <div key={customer.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+              <div className="px-3.5 pt-3 pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate cursor-pointer hover:text-blue-600" onClick={() => setSelectedCustomerId(customer.id!)}>
+                      {customer.name}
+                    </h4>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">📱 {customer.mobile}</p>
+                    {(customer.city || customer.state) && (
+                      <p className="text-[10px] text-slate-400 mt-0.5">{[customer.city, customer.state].filter((v: string) => v && v !== 'Unknown').join(', ')}</p>
+                    )}
+                  </div>
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    {type === 'vip' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">⭐ VIP</span>}
+                    {type === 'repeat' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700">↻ Repeat</span>}
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-sm ${getBadgeClasses(customer.currentStatus)}`}>
+                      {customer.currentStatus || 'New Lead'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mt-2.5 text-center">
+                  <div className="bg-slate-50 rounded-lg py-1.5">
+                    <div className="font-black text-slate-800 text-sm">₹{totalCod.toLocaleString()}</div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">COD</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg py-1.5">
+                    <div className="font-black text-slate-800 text-sm">{totalOrders}</div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Orders</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg py-1.5">
+                    <div className="font-bold text-slate-700 text-sm">{delivered}<span className="text-slate-400">D</span> · {rto}<span className="text-red-500">R</span> · {cancelled}<span className="text-slate-400">C</span></div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Statuses</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 mt-2 text-[10px] text-slate-500">
+                  <span className="inline-flex items-center gap-1"><Calendar size={10} /> {safeFormat(firstDate, 'dd MMM yyyy')}</span>
+                  <span className="text-slate-300">→</span>
+                  <span className="inline-flex items-center gap-1"><Clock size={10} /> {lastDate ? safeFormat(lastDate, 'dd MMM yyyy') : '—'}</span>
+                </div>
+              </div>
+
+              <div className="px-3 pb-3 flex gap-2">
+                {customer.mobile && (
+                  <a href={`tel:${customer.mobile}`} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-50 text-green-700 border border-green-100 active:scale-95 transition-transform">
+                    <Phone size={16} /> <span className="text-[10px] font-bold">Call</span>
+                  </a>
+                )}
+                <button onClick={() => setSelectedCustomerId(customer.id!)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 active:scale-95 transition-transform">
+                  <Eye size={16} /> <span className="text-[10px] font-bold">Details</span>
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Bottom Pagination */}
       {totalPages > 1 && (

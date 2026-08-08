@@ -413,7 +413,8 @@ export function BackupCenter() {
         <div className="p-4 border-b border-slate-100 bg-slate-50">
           <h3 className="font-bold text-slate-800 text-sm">Database Summary</h3>
         </div>
-        <div className="overflow-x-auto">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-slate-100 text-slate-500 text-xs uppercase font-bold border-b border-slate-200">
@@ -447,6 +448,30 @@ export function BackupCenter() {
               })}
             </tbody>
           </table>
+        </div>
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-2.5 p-3">
+          {EXPORT_TABLES.map(t => {
+            const count = (counts as any)[t.key] || 0;
+            return (
+              <div key={t.key} className="bg-white rounded-xl border border-slate-200/80 shadow-sm px-3.5 py-3 flex items-center justify-between gap-2 av-fade-in">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-slate-400">{t.icon}</span>
+                  <div className="min-w-0">
+                    <p className="font-medium text-slate-800 text-sm truncate">{t.label}</p>
+                    <p className="text-[10px] text-slate-400">{count.toLocaleString()} records</p>
+                  </div>
+                </div>
+                {count > 0 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded shrink-0">
+                    <CheckCircle2 size={10} /> Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded shrink-0">Empty</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

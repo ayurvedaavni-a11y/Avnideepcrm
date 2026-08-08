@@ -28,22 +28,30 @@ export function Layout() {
   const showDateFilter = DATE_FILTER_ENABLED_ROUTES.includes(location.pathname);
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
+    // .av-shell-height = 100dvh with a 100vh fallback for older browsers
+    // (see index.css). Mobile browsers shrink the visible viewport when the
+    // URL bar shows; 100vh overflows it and cuts content behind the URL bar.
+    // min-w-0 on the content column lets wide children (tables/boards) scroll
+    // INSIDE their own overflow container instead of pushing the whole page
+    // horizontally — root cause of mobile horizontal page overflow.
+    <div className="flex av-shell-height bg-slate-50 overflow-hidden font-sans text-slate-900">
       <Sidebar />
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 av-shell-height overflow-hidden">
         <GlobalSearchAndNav />
-        {/* Global Date Filter Bar */}
+        {/* Global Date Filter Bar — compact single row */}
         {showDateFilter && (
-          <div className="bg-white border-b border-slate-200 px-3 sm:px-6 lg:px-8 py-2.5 flex items-center gap-3 z-10">
+          <div className="bg-white border-b border-slate-200 px-2.5 sm:px-4 lg:px-6 py-1.5 flex items-center gap-2 z-10">
             <GlobalDateFilter />
-            <div className="text-xs text-slate-400">
+            <div className="text-xs text-slate-400 hidden md:inline">
               All lists, counters, search, and exports respect this date range.
             </div>
           </div>
         )}
-        <main className="flex-1 overflow-y-auto bg-slate-50 relative z-0">
+        <main className="flex-1 overflow-y-auto bg-slate-50 relative z-0 min-h-0">
           <ErrorBoundary>
-            <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto pb-24 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+            {/* Compact paddings: mobile p-2.5, desktop p-6. The old pb-24
+                (96px) reserved space for a bottom nav that does not exist. */}
+            <div className="p-2.5 sm:p-4 lg:p-6 max-w-7xl mx-auto pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
               <Outlet />
             </div>
           </ErrorBoundary>

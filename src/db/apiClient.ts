@@ -8,8 +8,11 @@
 // Default is the live Cloudflare Worker — NEVER fall back to localhost, otherwise
 // a build made without the env var (e.g. Vercel / GitHub Actions) would call
 // http://localhost:8787 in production.
+// Optional chaining keeps this module import-safe outside Vite (Node tests),
+// where `import.meta.env` is undefined; in Vite builds Vite statically
+// replaces `import.meta.env.VITE_API_URL` as before.
 const API_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim().replace(/\/+$/, '') ||
+  ((import.meta as any).env?.VITE_API_URL as string | undefined)?.trim().replace(/\/+$/, '') ||
   'https://avnideep-crm-api.ayurvedaavni.workers.dev';
 
 const TOKEN_KEY = 'crm_auth_token';
@@ -72,6 +75,10 @@ async function request<T = any>(path: string, opts: RequestOptions = {}): Promis
       method,
       headers: h,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      // Never read authenticated CRM data from the browser HTTP cache — an
+      // already-open tab must always hit the Worker and get the latest D1
+      // state (the Worker also sends Cache-Control: private, no-store).
+      cache: 'no-store',
     });
   } catch {
     throw new ApiError('Please check your internet connection.', 0);

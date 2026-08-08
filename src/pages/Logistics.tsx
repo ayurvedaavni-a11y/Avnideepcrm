@@ -529,27 +529,103 @@ function LogisticsContent() {
         </div>
       </div>
 
-      {/* Shipments Table — Virtual Scrolling */}
-      <VirtualTable
-        data={displayShipments}
-        height={520}
-        estimateSize={68}
-        emptyState={
-          <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-            <Truck size={36} className="text-slate-300 mb-3" />
-            <p className="font-medium">No shipments found</p>
-            <p className="text-xs mt-1">
-              {activeTab !== 'All'
-                ? `No shipments in "${activeTab}" status. Try a different filter.`
-                : searchTerm
-                  ? 'No results match your search criteria.'
-                  : 'Shipments will appear once orders are dispatched.'}
-            </p>
+      {/* ===== DESKTOP: virtual shipments table (hidden on mobile) ===== */}
+      <div className="hidden md:block">
+        <VirtualTable
+          data={displayShipments}
+          height={'max(320px, calc(100dvh - 340px))'}
+          estimateSize={68}
+          emptyState={
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+              <Truck size={36} className="text-slate-300 mb-3" />
+              <p className="font-medium">No shipments found</p>
+              <p className="text-xs mt-1">
+                {activeTab !== 'All'
+                  ? `No shipments in "${activeTab}" status. Try a different filter.`
+                  : searchTerm
+                    ? 'No results match your search criteria.'
+                    : 'Shipments will appear once orders are dispatched.'}
+              </p>
+            </div>
+          }
+          rowClassName={() => 'border-b border-slate-100 hover:bg-slate-50 transition-colors'}
+          columns={shipmentColumns}
+        />
+      </div>
+
+      {/* ===== MOBILE: shipment cards (desktop table hidden) ===== */}
+      <div className="md:hidden space-y-2.5">
+        {displayShipments.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-white rounded-xl border border-slate-200">
+            <Truck size={32} className="text-slate-300 mb-2" />
+            <p className="font-medium text-sm">No shipments found</p>
           </div>
-        }
-        rowClassName={() => 'border-b border-slate-100 hover:bg-slate-50 transition-colors'}
-        columns={shipmentColumns}
-      />
+        )}
+        {displayShipments.map((ship: any) => {
+          const order = ship.order;
+          const expectedDelivery = ship.dispatchDate
+            ? new Date(new Date(ship.dispatchDate).getTime() + 7 * 86400000).toISOString()
+            : '';
+          const currentStatus = ship.status;
+          const nextOptions = nextStatusOptions(currentStatus);
+          const badgeColor = getBadgeColor(currentStatus);
+          return (
+            <div key={ship.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+              <div className="px-3.5 pt-3 pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded-lg inline-block">{order?.orderId || '—'}</p>
+                    <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate cursor-pointer hover:text-blue-600 mt-1.5" onClick={() => ship.customer && setSelectedCustomerId(ship.customer.id)}>
+                      {ship.customer?.name || 'Unknown'}
+                    </h4>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">📱 {ship.customer?.mobile || '—'}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-black text-slate-900 text-base">₹{order?.codAmount?.toLocaleString() || '0'}</p>
+                    <span className={`inline-block px-2.5 py-1.5 rounded-lg text-[10px] font-bold border mt-1 ${badgeColor}`}>{currentStatus}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-2">
+                  {order?.trackingId ? (
+                    <span className="text-xs font-mono text-slate-600 inline-flex items-center gap-1">
+                      <Copy size={10} className="text-slate-400" /> {order.trackingId}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">No AWB</span>
+                  )}
+                  <span className="text-[10px] text-slate-400">{order?.courier || 'Not assigned'}</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 mt-1.5 text-[10px] text-slate-500">
+                  <span className="inline-flex items-center gap-1"><Calendar size={10} /> {ship.dispatchDate ? safeFormat(ship.dispatchDate, 'dd MMM yyyy') : 'No dispatch date'}</span>
+                  {expectedDelivery && <span className="inline-flex items-center gap-1"><Clock size={10} /> Due {safeFormat(expectedDelivery, 'dd MMM')}</span>}
+                </div>
+
+                {nextOptions.length > 1 && (
+                  <div className="mt-2">
+                    <select value={currentStatus} onChange={e => handleStatusChange(ship, e.target.value)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold outline-none border cursor-pointer w-full ${badgeColor}`}>
+                      {nextOptions.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-3 pb-3 grid grid-cols-2 gap-2">
+                <button onClick={() => handleViewTracking(order?.orderId)} className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 active:scale-95 transition-transform">
+                  <Eye size={16} /> <span className="text-[10px] font-bold">Tracking</span>
+                </button>
+                {ship.customer?.mobile && (
+                  <a href={`tel:${ship.customer.mobile}`} className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-50 text-green-700 border border-green-100 active:scale-95 transition-transform">
+                    <Phone size={16} /> <span className="text-[10px] font-bold">Call</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* Tracking Timeline Modal */}
       {selectedOrderId && (

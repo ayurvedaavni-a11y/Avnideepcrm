@@ -102,8 +102,8 @@ export function CourierAnalytics() {
         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
           <h3 className="font-bold text-slate-800 text-sm">Courier-wise Performance</h3>
         </div>
-        <div className="overflow-x-auto">
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                 <th className="p-3">Courier</th>
@@ -136,7 +136,34 @@ export function CourierAnalytics() {
                 <tr><td colSpan={6} className="p-8 text-center text-slate-500">No courier data yet.</td></tr>
               )}
             </tbody>
-          </table></div>
+          </table>
+        </div>
+        <div className="md:hidden divide-y divide-slate-100">
+          {courierStats.map(c => (
+            <div key={c.name} className="px-4 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-slate-800 truncate">{c.name}</div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${c.rate}%` }}></div>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-500">{c.rate}%</span>
+                </div>
+                <div className="flex gap-3 mt-1.5 text-xs text-slate-500">
+                  <span>{c.total} total</span>
+                  <span className="text-emerald-600 font-bold">{c.delivered} delivered</span>
+                  <span className="text-red-600 font-bold">{c.rto} RTO</span>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-lg font-bold text-slate-800">{c.rtoRate}%</div>
+                <div className="text-[10px] uppercase font-bold text-slate-400">RTO rate</div>
+              </div>
+            </div>
+          ))}
+          {courierStats.length === 0 && (
+            <div className="p-8 text-center text-slate-500 text-sm">No courier data yet.</div>
+          )}
         </div>
       </div>
     </div>

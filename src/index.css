@@ -11,6 +11,20 @@ body {
   overflow-x: hidden;
 }
 
+/* App shell height: 100vh fallback (older browsers), then dynamic viewport
+   when supported (mobile browsers shrink the visible viewport when the URL
+   bar shows — 100vh overflows it and cuts content). This is a single custom
+   class so the fallback order is guaranteed (Tailwind's h-screen/h-dvh sort
+   order is NOT reliable for this). */
+.av-shell-height {
+  height: 100vh;
+}
+@supports (height: 100dvh) {
+  .av-shell-height {
+    height: 100dvh;
+  }
+}
+
 img,
 video {
   max-width: 100%;

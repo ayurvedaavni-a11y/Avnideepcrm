@@ -35,7 +35,8 @@ export function UndeliveredCustomers() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left border-collapse font-sans text-sm">
             <thead>
               <tr className="bg-slate-100 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
@@ -114,6 +115,55 @@ export function UndeliveredCustomers() {
               )}
             </tbody>
           </table></div>
+        </div>
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-2.5 p-3">
+          {filteredCustomers.length === 0 && (
+            <div className="p-10 text-center text-slate-500 text-sm">No active undelivered exceptions found for this date range.</div>
+          )}
+          {filteredCustomers.map(cust => {
+            const ndr = ndrCases.find(n => n.customerId === cust.id);
+            const order = orders.find(o => o.customerId === cust.id && o.status === 'Undelivered');
+            const lastAttempt = ndr && ndr.attempts && ndr.attempts.length > 0 ? ndr.attempts[ndr.attempts.length - 1] : null;
+            return (
+              <div key={cust.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+                <div className="px-3.5 pt-3 pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate cursor-pointer hover:text-blue-600" onClick={() => setSelectedCustomerId(cust.id!)}>{cust.name}</h4>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">📱 {cust.mobile}</p>
+                      <p className="text-[13px] text-slate-600 mt-1.5 truncate">{order?.product || 'Product Exception'}</p>
+                    </div>
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[10px] font-bold rounded">{ndr?.status || 'Pending NDR'}</span>
+                      <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{ndr?.attemptCount || 1} / 3 attempts</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-2 line-clamp-2">
+                    {lastAttempt ? lastAttempt.customerResponse : (ndr?.reason || 'No attempt logged')}
+                  </p>
+                  <div className="mt-2">
+                    {cust.riskLevel === 'Fake' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-[10px] font-bold rounded">
+                        <AlertTriangle size={12} /> FAKE
+                      </span>
+                    ) : cust.riskLevel === 'Critical' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 text-[10px] font-bold rounded border border-red-200">CRITICAL RISK</span>
+                    ) : (
+                      <span className={`px-2 py-1 text-[10px] font-bold rounded ${cust.riskLevel === 'High' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                        {cust.riskLevel} Risk
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="px-3 pb-3">
+                  <button onClick={() => setSelectedCustomerId(cust.id!)} className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-xs active:scale-95 transition-transform">
+                    <Eye size={14} /> Timeline
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

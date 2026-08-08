@@ -74,7 +74,8 @@ export function Payments() {
         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
           <h2 className="font-bold text-slate-800 text-sm">Outstanding Invoices ({pendingInvoices.length})</h2>
         </div>
-        <div className="overflow-x-auto">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm">
             <thead>
               <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
@@ -114,6 +115,45 @@ export function Payments() {
             </tbody>
           </table></div>
         </div>
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-2.5 p-3">
+          {pendingInvoices.length === 0 && (
+            <div className="p-8 text-center text-slate-500 text-sm">No outstanding invoices 🎉</div>
+          )}
+          {pendingInvoices.map(inv => (
+            <div key={inv.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+              <div className="px-3.5 pt-3 pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold font-mono text-slate-500 bg-slate-100 px-2 py-1 rounded-lg inline-block">{inv.invoiceNumber}</p>
+                    <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate mt-1">{inv.customerName}</h4>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">📱 {inv.customerMobile}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-black text-slate-900 text-base">₹{inv.total.toFixed(2)}</p>
+                    <StatusBadge status={inv.status} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mt-2.5">
+                  <div className="bg-emerald-50 rounded-lg py-1.5 px-2 text-center">
+                    <div className="font-bold text-emerald-700 text-sm">₹{(inv.amountPaid || 0).toFixed(2)}</div>
+                    <div className="text-[9px] text-emerald-500 font-bold uppercase">Paid</div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg py-1.5 px-2 text-center">
+                    <div className="font-bold text-red-600 text-sm">₹{(inv.balanceDue ?? inv.total).toFixed(2)}</div>
+                    <div className="text-[9px] text-red-400 font-bold uppercase">Balance</div>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1.5">{safeFormat(inv.invoiceDate, 'dd MMM yyyy')}</p>
+              </div>
+              <div className="px-3 pb-3">
+                <button onClick={() => setPaymentInvoice(inv)} className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs active:scale-95 transition-transform">
+                  <Plus size={14} /> Record Payment
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Recent Payments */}
@@ -121,7 +161,8 @@ export function Payments() {
         <div className="px-4 py-3 border-b border-slate-100 bg-slate-50">
           <h2 className="font-bold text-slate-800 text-sm">Recent Payments ({dateFilteredPayments.length})</h2>
         </div>
-        <div className="overflow-x-auto max-h-96 overflow-y-auto">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto max-h-96 overflow-y-auto">
           <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm">
             <thead className="sticky top-0">
               <tr className="bg-slate-50 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
@@ -150,6 +191,25 @@ export function Payments() {
               )}
             </tbody>
           </table></div>
+        </div>
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-2 p-3">
+          {dateFilteredPayments.length === 0 && (
+            <div className="p-8 text-center text-slate-500 text-sm">No payments recorded yet for this date range.</div>
+          )}
+          {dateFilteredPayments.slice(0, 50).map(pmt => {
+            const inv = invoices.find(i => i.id === pmt.invoiceId);
+            return (
+              <div key={pmt.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm px-3.5 py-3 flex items-center justify-between gap-2 av-fade-in">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded inline-block">{inv?.invoiceNumber || `INV#${pmt.invoiceId}`}</p>
+                  <p className="text-xs text-slate-500 mt-1">{safeFormat(pmt.paymentDate, 'dd MMM yyyy HH:mm')}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{pmt.method}{pmt.reference ? ` · ${pmt.reference}` : ''}</p>
+                </div>
+                <span className="font-bold text-emerald-600 text-sm shrink-0">₹{pmt.amount.toFixed(2)}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 

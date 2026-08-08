@@ -66,7 +66,22 @@ const DEFAULT_PBKDF2_ITERATIONS = 15000;
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    headers: {
+      'Content-Type': 'application/json',
+      // Authenticated CRM data must NEVER be cached by the browser HTTP cache,
+      // Cloudflare edge cache, a service worker or any shared CDN layer — a
+      // cached pull response is exactly how an already-open tab keeps showing
+      // stale leads while a fresh tab shows the latest D1 rows. 'no-store'
+      // forbids storing the response anywhere; 'private' ensures proxies don't
+      // share it; 'must-revalidate' is a belt-and-suspenders fallback for
+      // clients that ignore no-store. All API routes go through this helper,
+      // so every endpoint (sync pull/status, auth/me, settings, count, intake)
+      // inherits the same policy.
+      'Cache-Control': 'private, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+      ...CORS_HEADERS,
+    },
   });
 }
 

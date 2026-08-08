@@ -329,7 +329,10 @@ async function pullFromCloud(userId: string, forceFull = false): Promise<{ ok: b
   try {
     const cursors = loadCursors(userId);
     const ready = cursors && ORDERED_KEYS.every((k) => typeof cursors.tables[k] === 'string');
-    const incremental = ready && !forceFull && (cursors!.fullPulls % 10 !== 9);
+    // Full re-sync every 5th pull (~75s worst case) instead of every 10th
+    // (~2.5 min): a stuck/invalid incremental cursor heals twice as fast, so a
+    // stale open tab converges quickly even if a watermark ever goes stale.
+    const incremental = ready && !forceFull && (cursors!.fullPulls % 5 !== 4);
     const cloudNames = ORDERED_KEYS.map((k) => SYNC_TABLES[k].cloud);
     const deferred: DeferredRow[] = [];
     let pulledAt = '';
@@ -408,6 +411,17 @@ async function pullFromCloud(userId: string, forceFull = false): Promise<{ ok: b
 // Backward-compatible alias used by manual/manual-ish callers.
 export async function pullAllFromCloud(): Promise<{ ok: boolean; error?: string }> {
   return pullFromCloud(activeUserId(), true);
+}
+
+/**
+ * Pull cloud changes for the current user now.
+ * - `forceFull = true`  → full pull (fresh, cursor-independent). Used when the
+ *   tab becomes visible again, regains focus, or comes back online — the exact
+ *   moments a stale open tab must converge on the latest server data.
+ * - `forceFull = false` → normal incremental cursor pull (the 15s interval).
+ */
+export async function pullNow(forceFull: boolean): Promise<{ ok: boolean; error?: string }> {
+  return pullFromCloud(activeUserId(), forceFull);
 }
 
 function activeUserId(): string {
@@ -551,10 +565,41 @@ let statusIntervalId: any = null;
 
 function kick() { void processQueue(); }
 
+// ---------- return-to-tab refresh ----------
+// Stale-open-tab fix: when the tab becomes visible / regains focus / comes
+// back online we refresh IMMEDIATELY instead of waiting for the 15s tick.
+// Two safeguards keep this production-safe:
+//  1. processQueue() is AWAITED first — a pending local edit reaches the
+//     server before the pull applies cloud rows, so a full pull can never
+//     overwrite a not-yet-pushed local change with older server state.
+//  2. Full pulls are gated to at most once per FULL_PULL_GAP_MS: returning to
+//     the tab is exactly the stale-tab moment that needs a fresh snapshot,
+//     but re-downloading every table on every focus flicker would be wasteful
+//     for large datasets — consecutive returns within the gap use the cheap
+//     incremental cursor pull instead (the 5th-pull cadence still forces
+//     fulls as a background self-heal).
+const FULL_PULL_GAP_MS = 60_000;
+let lastFullPullAt = 0;
+
+async function refreshOnTabReturn(forceFull: boolean) {
+  await processQueue();
+  if (forceFull || Date.now() - lastFullPullAt > FULL_PULL_GAP_MS) {
+    lastFullPullAt = Date.now();
+    await pullNow(true);
+  } else {
+    await pullNow(false);
+  }
+}
+
 export async function startOnlineSync(): Promise<void> {
   if (started) return;
   started = true;
-  window.addEventListener('online', () => { setSyncStatus({ online: true }); void kick(); });
+  window.addEventListener('online', () => {
+    setSyncStatus({ online: true });
+    // Connection restored → full pull so any changes made elsewhere while
+    // offline arrive immediately (no waiting for the 15s tick).
+    void refreshOnTabReturn(true);
+  });
   window.addEventListener('offline', () => setSyncStatus({ online: false, error: undefined }));
 
   attachOnlineSyncHooks();
@@ -578,7 +623,7 @@ export async function startOnlineSync(): Promise<void> {
   // order status changes (Delivered/RTO/Cancelled) to every device in ~2s.
   intervalId = setInterval(async () => {
     await processQueue();
-    await pullFromCloud(activeUserId(), false);
+    await pullNow(false);
     await processIntakeLeads();
   }, 15000);
 
@@ -587,13 +632,22 @@ export async function startOnlineSync(): Promise<void> {
   // the main pull (same fields, just faster + lighter).
   statusIntervalId = setInterval(() => void pollOrderStatus(activeUserId()), 2000);
 
-  // Refetch immediately when the app/tab becomes visible again.
+  // Refetch immediately when the app/tab becomes visible again — and force a
+  // FULL pull (not incremental) so a tab that sat open while another device
+  // (or a deploy + import) changed the data converges on the first moment the
+  // user looks at it again. This is the primary fix for the stale-open-tab
+  // scenario: return to the tab → fresh data, no manual refresh needed.
   window.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      void processQueue();
-      void pullFromCloud(activeUserId(), false);
+      // Queue flushed first, then a (gated) full pull — see refreshOnTabReturn.
+      void refreshOnTabReturn(false);
       void pollOrderStatus(activeUserId());
     }
+  });
+  // Same guarantee when the window regains focus (covers browsers/OS where
+  // focus fires without a visibilitychange, and single-tab returns).
+  window.addEventListener('focus', () => {
+    void refreshOnTabReturn(false);
   });
 }
 

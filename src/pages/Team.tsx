@@ -224,7 +224,9 @@ export function Team() {
         ) : members.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-sm">No members yet. Create the first account above.</div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-slate-400 border-b border-slate-100">
@@ -285,6 +287,64 @@ export function Team() {
               </tbody>
             </table></div>
           </div>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2.5">
+            {members.map((m) => (
+              <div key={m.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+                <div className="px-3.5 pt-3 pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+                          {(m.full_name || '?').slice(0, 1).toUpperCase()}
+                        </span>
+                        <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate">
+                          {m.full_name}
+                          {m.id === profile?.id && <span className="ml-1 text-[10px] text-blue-600 font-bold">(YOU)</span>}
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-500 font-medium mt-1">📱 {m.mobile || '—'}</p>
+                    </div>
+                    <div className="shrink-0 flex flex-col items-end gap-1">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${m.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                        {m.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">{(m as any).lead_count ?? 0} leads</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="px-3 pb-3 flex items-center gap-2">
+                  <button onClick={() => changeRole(m)} disabled={m.id === profile?.id || busyId === m.id}
+                    className={`text-xs font-bold px-3 py-1.5 rounded-full transition flex-1 ${m.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'} hover:opacity-75 disabled:opacity-50 disabled:cursor-not-allowed`}>
+                    {m.role === 'admin' ? 'Admin' : 'Telecaller'} — tap to change
+                  </button>
+                </div>
+                <div className="px-3 pb-3 grid grid-cols-4 gap-2">
+                  <button onClick={() => toggleActive(m)} disabled={m.id === profile?.id || busyId === m.id}
+                    title={m.is_active ? 'Deactivate' : 'Activate'}
+                    className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 active:scale-95 transition-transform disabled:opacity-40">
+                    <Power size={16} /> <span className="text-[9px] font-bold">{m.is_active ? 'Deact.' : 'Activ.'}</span>
+                  </button>
+                  <button onClick={() => handleChangeMobile(m)} disabled={busyId === m.id}
+                    title="Change Mobile"
+                    className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-sky-50 text-sky-600 border border-sky-100 active:scale-95 transition-transform disabled:opacity-40">
+                    <Smartphone size={16} /> <span className="text-[9px] font-bold">Mobile</span>
+                  </button>
+                  <button onClick={() => { setNewPin(''); setPinResetMember(m); }} disabled={busyId === m.id}
+                    title="Change PIN"
+                    className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 active:scale-95 transition-transform disabled:opacity-40">
+                    <KeyRound size={16} /> <span className="text-[9px] font-bold">PIN</span>
+                  </button>
+                  <button onClick={() => handleDelete(m)} disabled={m.id === profile?.id || busyId === m.id}
+                    title="Delete"
+                    className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-red-50 text-red-600 border border-red-100 active:scale-95 transition-transform disabled:opacity-40">
+                    <Trash2 size={16} /> <span className="text-[9px] font-bold">Delete</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
 

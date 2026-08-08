@@ -464,9 +464,9 @@ export function BulkImport() {
 
       {/* Preview */}
       {preview.length > 0 && !importing && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 overflow-x-auto">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
           <p className="text-sm font-bold text-slate-700 mb-3">Preview — first 10 rows of {fileData.length}</p>
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
+          <div className="hidden md:block overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
             <thead><tr className="bg-slate-100 text-slate-600 text-xs uppercase font-bold">{Object.keys(preview[0]).map((k, i) => <th key={i} className="p-2">{k}</th>)}</tr></thead>
             <tbody>
               {preview.map((row, i) => (
@@ -478,6 +478,21 @@ export function BulkImport() {
               ))}
             </tbody>
           </table></div>
+          <div className="md:hidden space-y-2">
+            {preview.map((row, i) => (
+              <div key={i} className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
+                <div className="text-[11px] font-bold text-slate-400 mb-1.5">Row {i + 1}</div>
+                <div className="space-y-1">
+                  {Object.keys(preview[0]).map((k, j) => (
+                    <div key={j} className="flex items-start justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase shrink-0">{k}</span>
+                      <span className="text-xs text-slate-700 text-right break-all">{String(row[k] ?? '—')}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

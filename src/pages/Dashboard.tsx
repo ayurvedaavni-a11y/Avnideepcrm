@@ -251,7 +251,8 @@ export function Dashboard() {
             <h3 className="text-lg font-bold text-slate-800">My Assigned Leads</h3>
             <span className="text-sm text-slate-400">{myLeads.length} total</span>
           </div>
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 bg-slate-50">
@@ -285,6 +286,35 @@ export function Dashboard() {
                 ))}
               </tbody>
             </table>
+          </div>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2.5 p-3">
+            {myLeads.length === 0 && (
+              <div className="p-8 text-center text-slate-400 text-sm">No leads have been assigned to you yet.</div>
+            )}
+            {myLeads.slice(0, 10).map(l => {
+              const cust = customerMap.get(l.customerId);
+              return (
+                <div key={l.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+                  <div className="px-3.5 pt-3 pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate">{cust?.name || '—'}</h4>
+                        <p className="text-xs text-slate-500 font-medium mt-0.5">📱 {cust?.mobile || ''}</p>
+                        <p className="text-[13px] text-slate-600 mt-1.5 truncate">{l.product}</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold shrink-0 ${getBadgeClasses(l.status)}`}>{l.status}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-2 text-[11px]">
+                      <span className="text-slate-500">📅 {l.followupDate ? `${l.followupDate}${l.followupTime ? ' ' + l.followupTime : ''}` : '—'}</span>
+                    </div>
+                    {l.notes && (
+                      <p className="text-xs text-slate-500 mt-1.5 bg-slate-50 rounded-lg px-2.5 py-1.5 line-clamp-2">{l.notes.split('\n').pop()}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

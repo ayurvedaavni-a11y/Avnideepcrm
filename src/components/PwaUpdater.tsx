@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw'
 import X from 'lucide-react/dist/esm/icons/x'
@@ -8,6 +9,14 @@ import WifiOff from 'lucide-react/dist/esm/icons/wifi-off'
  * - First load (after SW caches): shows "App is ready for offline use".
  * - New build available: shows "New update available" prompt → update instantly.
  * Works only in browsers; Electron (file://) silently skips SW registration.
+ *
+ * STALE-OPEN-TAB FIX: with `registerType: 'prompt'` the browser only checks
+ * for a newer service worker on a page load / navigation — an already-open
+ * tab would keep running the OLD JS bundle forever after a deploy. So we
+ * actively poll `registration.update()` every 60s and on every tab
+ * visibility/focus change. When a newer build is found, the SW installs and
+ * the existing needRefresh prompt appears → user clicks Update → skipWaiting
+ * + controlled reload. No manual refresh / new tab required.
  */
 export function PwaUpdater() {
   const {
@@ -22,6 +31,38 @@ export function PwaUpdater() {
       console.error('[PWA] Service worker registration failed:', err);
     },
   });
+
+  // Force the browser to re-check for a new service worker so an open tab
+  // detects a fresh deployment. `registration.update()` re-fetches the SW
+  // script; if it changed, updatefound → new SW installs → needRefresh above.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const check = () => {
+      try {
+        navigator.serviceWorker
+          .getRegistration()
+          .then((reg) => { if (reg) return reg.update(); })
+          .catch(() => { /* no SW / offline — next tick retries */ });
+      } catch { /* ignore */ }
+    };
+    // Check soon after mount (catches deploys that happened while the tab was
+    // closed and the app was restored from bfcache), then on a timer and on
+    // every return-to-tab / refocus.
+    const t = setTimeout(check, 5000);
+    const interval = setInterval(check, 60000);
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    const onFocus = () => check();
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('online', check);
+    return () => {
+      clearTimeout(t);
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('online', check);
+    };
+  }, []);
 
   if (!offlineReady && !needRefresh) return null;
 

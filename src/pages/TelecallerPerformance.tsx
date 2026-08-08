@@ -154,7 +154,8 @@ export function TelecallerPerformance() {
           <h2 className="font-bold text-slate-800">{isAdmin ? 'Per-Telecaller Report' : 'My Report'}</h2>
           {rows.length > 0 && <span className="ml-auto text-xs text-slate-400">{rows.length} telecaller{rows.length !== 1 ? 's' : ''}</span>}
         </div>
-        <div className="overflow-x-auto">
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 bg-slate-50">
@@ -221,6 +222,77 @@ export function TelecallerPerformance() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile cards */}
+        <div className="md:hidden space-y-2.5">
+          {loading && <div className="p-8 text-center text-slate-400 text-sm">Loading…</div>}
+          {!loading && rows.length === 0 && (
+            <div className="p-8 text-center text-slate-400 text-sm bg-white rounded-xl border border-slate-200">
+              {isAdmin ? 'No telecaller account has been created yet.' : 'No data yet.'}
+            </div>
+          )}
+          {rows.map((m) => (
+            <div key={m.telecallerId} className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+              <div className="px-3.5 pt-3 pb-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm shrink-0">
+                      {m.telecallerName.slice(0, 1).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 truncate">{m.telecallerName}</p>
+                      {m.mobile && <p className="text-[10px] text-slate-400">{m.mobile}</p>}
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-black bg-purple-100 text-purple-700 shrink-0">
+                    <Wallet size={12} /> {inr(m.commission)}
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mt-2.5 text-center">
+                  <div className="bg-slate-50 rounded-lg py-1.5">
+                    <div className="font-bold text-slate-800 text-sm">{m.assigned}</div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Assigned</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-lg py-1.5">
+                    <div className="font-bold text-slate-800 text-sm">{m.calls}</div>
+                    <div className="text-[9px] text-slate-400 font-bold uppercase">Calls</div>
+                  </div>
+                  <div className="bg-emerald-50 rounded-lg py-1.5">
+                    <div className="font-bold text-emerald-700 text-sm">{m.converted}</div>
+                    <div className="text-[9px] text-emerald-500 font-bold uppercase">Conv.</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg py-1.5">
+                    <div className="font-bold text-blue-700 text-sm">{m.conversionPct}%</div>
+                    <div className="text-[9px] text-blue-500 font-bold uppercase">Conv %</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[10px]">
+                  <span className="text-slate-500">⏱ {fmtDuration(m.totalCallSeconds)} · {m.deliveredOrders} delivered</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2.5 text-center">
+                  <div className="rounded-lg py-1.5 bg-emerald-50">
+                    <div className="font-bold text-emerald-700 text-xs">{inr(m.deliveredAmount)}</div>
+                    <div className="text-[8px] text-emerald-500 font-bold uppercase">Delivered</div>
+                  </div>
+                  <div className="rounded-lg py-1.5 bg-orange-50">
+                    <div className="font-bold text-orange-600 text-xs">{inr(m.pendingAmount)}</div>
+                    <div className="text-[8px] text-orange-500 font-bold uppercase">Pending</div>
+                  </div>
+                  <div className="rounded-lg py-1.5 bg-rose-50">
+                    <div className="font-bold text-rose-600 text-xs">{inr(m.rtoAmount)}</div>
+                    <div className="text-[8px] text-rose-500 font-bold uppercase">RTO</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-1 mt-2.5 text-[9px] font-bold text-slate-500">
+                  <span className="text-amber-600">Today {inr(m.dailyAmount)}</span>
+                  <span className="text-blue-600">Week {inr(m.weeklyAmount)}</span>
+                  <span className="text-indigo-600">Month {inr(m.monthlyAmount)}</span>
+                  <span className="text-slate-500">Cancel {inr(m.cancelledAmount)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

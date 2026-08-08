@@ -193,13 +193,15 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
     </ModalPortal>
       )}
 
-      <div className="bg-white border-b border-slate-200 px-3 sm:px-6 lg:px-8 py-2.5 lg:py-3 flex justify-between items-center gap-3 z-10 sticky top-0">
+      {/* Compact top bar — minimal vertical footprint so pages get the maximum
+          viewport. Hamburger (mobile) + search + notification/profile. */}
+      <div className="bg-white border-b border-slate-200 px-2.5 sm:px-4 lg:px-6 py-2 lg:py-2.5 flex justify-between items-center gap-2 sm:gap-3 z-10 sticky top-0 shrink-0">
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('crm:toggle-sidebar'))}
-          className="lg:hidden p-2 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100 transition shrink-0"
+          className="lg:hidden p-1.5 -ml-1 rounded-lg text-slate-600 hover:bg-slate-100 transition shrink-0"
           aria-label="Menu"
         >
-          <Menu size={22} />
+          <Menu size={20} />
         </button>
         <div className="relative w-full min-w-0 sm:w-72 lg:w-96">
           <div className="relative">
@@ -210,11 +212,11 @@ export const GlobalSearchAndNav = memo(function GlobalSearchAndNav() {
               type="text" 
               autoComplete="search"
               aria-label="Global search"
-              placeholder="Global Search (Phone, Name, Order ID, Tracking)..." 
+              placeholder="Search phone, name, order, tracking..." 
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setIsSearchOpen(true); }}
               onFocus={() => setIsSearchOpen(true)}
-              className="pl-10 pr-4 py-2 border border-slate-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
+              className="pl-9 pr-3.5 py-1.5 text-sm border border-slate-300 rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50"
             />
           </div>
 

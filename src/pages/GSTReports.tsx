@@ -198,8 +198,8 @@ export function GSTReports() {
 
       {/* Report Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left border-collapse text-sm">
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left border-collapse text-sm">
             <thead>
               <tr className="bg-slate-100 text-slate-600 text-xs uppercase font-bold border-b border-slate-200">
                 {reportType === 'sales' && <>
@@ -280,7 +280,70 @@ export function GSTReports() {
                 </tr>
               )}
             </tfoot>
-          </table></div>
+          </table>
+        </div>
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {reportType === 'sales' && (salesReport.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 text-sm">No sales data yet.</div>
+          ) : salesReport.map((r, i) => (
+            <div key={i} className="px-4 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-mono text-xs text-slate-500">{r.invoiceNo}</div>
+                  <div className="font-bold text-slate-800 truncate">{r.customer}</div>
+                  <div className="text-xs text-slate-500">{r.date} • {r.state} • {r.gstType}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-bold text-slate-800">₹{r.total.toFixed(2)}</div>
+                  <div className="text-[10px] text-slate-400">Taxable ₹{r.taxable.toFixed(2)}</div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-2 text-[11px]">
+                <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold">CGST ₹{r.cgst.toFixed(2)}</span>
+                <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold">SGST ₹{r.sgst.toFixed(2)}</span>
+                <span className="px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 font-bold">IGST ₹{r.igst.toFixed(2)}</span>
+              </div>
+            </div>
+          )))}
+          {reportType === 'state' && (stateReport.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 text-sm">No state data yet.</div>
+          ) : stateReport.map((r, i) => (
+            <div key={i} className="px-4 py-3 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-bold text-slate-800 truncate">{r.state}</div>
+                <div className="text-xs text-slate-500">{r.count} invoices</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="font-bold text-slate-800">₹{(r.cgst + r.sgst + r.igst).toFixed(2)}</div>
+                <div className="text-[10px] text-slate-400">Taxable ₹{r.taxable.toFixed(2)}</div>
+              </div>
+            </div>
+          )))}
+          {reportType === 'hsn' && (hsnReport.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 text-sm">No HSN data yet.</div>
+          ) : hsnReport.map((r, i) => (
+            <div key={i} className="px-4 py-3 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="font-mono text-xs text-slate-500">{r.hsn}</div>
+                <div className="font-bold text-slate-800 truncate">{r.product}</div>
+                <div className="text-xs text-slate-500">Qty {r.qty}</div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="font-bold text-slate-800">₹{r.taxable.toFixed(2)}</div>
+                <div className="text-[10px] text-slate-400">{r.gstRate}% GST</div>
+              </div>
+            </div>
+          )))}
+          {reportType === 'sales' && salesReport.length > 0 && (
+            <div className="px-4 py-3 bg-slate-50 flex items-center justify-between gap-2">
+              <div className="font-bold text-slate-700 text-sm">Totals</div>
+              <div className="text-right shrink-0">
+                <div className="font-bold text-slate-800 text-sm">₹{totals.total.toFixed(2)}</div>
+                <div className="text-[10px] text-slate-400">CGST ₹{totals.cgst.toFixed(2)} • SGST ₹{totals.sgst.toFixed(2)} • IGST ₹{totals.igst.toFixed(2)}</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

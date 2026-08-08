@@ -230,8 +230,8 @@ export function Invoices() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* ===== DESKTOP table (hidden on mobile) ===== */}
+      <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
@@ -302,6 +302,61 @@ export function Invoices() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* ===== MOBILE: invoice cards (desktop table hidden) ===== */}
+      <div className="md:hidden space-y-2.5">
+        {filtered.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400 bg-white rounded-xl border border-slate-200">
+            <FileText size={32} className="text-slate-300 mb-2" />
+            <p className="font-medium text-sm">No invoices found</p>
+          </div>
+        )}
+        {filtered.map(inv => (
+          <div key={inv.id} className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden av-fade-in">
+            <div className="px-3.5 pt-3 pb-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <button onClick={() => navigate(`/invoices/${inv.invoiceNumber}`)} className="font-mono font-bold text-slate-900 text-sm text-left hover:text-blue-600">
+                    {inv.invoiceNumber}
+                  </button>
+                  <h4 className="font-bold text-slate-900 text-[15px] leading-tight truncate mt-1">{inv.customerName}</h4>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">📱 {inv.customerMobile}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{safeFormat(inv.invoiceDate, 'dd MMM yyyy')}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="font-black text-blue-600 text-base">₹{inv.total.toFixed(2)}</p>
+                  <div className="flex flex-col items-end gap-1 mt-1">
+                    <FulfillmentBadge status={inv.fulfillmentStatus || 'Pending'} />
+                    <PaymentBadge status={inv.paymentStatus} cancelled={inv.status === 'Cancelled'} />
+                  </div>
+                </div>
+              </div>
+              <p className="text-[13px] text-slate-600 mt-1.5 truncate">{inv.product} <span className="text-slate-400">Qty: {inv.qty}</span></p>
+            </div>
+            <div className="px-3 pb-3 grid grid-cols-4 gap-2">
+              <button onClick={() => setPreviewInvoice(inv)} className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 active:scale-95 transition-transform">
+                <Eye size={16} /> <span className="text-[9px] font-bold">Preview</span>
+              </button>
+              <button onClick={() => downloadInvoicePDF(inv)} className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 active:scale-95 transition-transform">
+                <Download size={16} /> <span className="text-[9px] font-bold">PDF</span>
+              </button>
+              <button onClick={() => printInvoice(inv)} className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-100 active:scale-95 transition-transform">
+                <Printer size={16} /> <span className="text-[9px] font-bold">Print</span>
+              </button>
+              {inv.status !== 'Cancelled' ? (
+                <button onClick={async () => { if (window.confirm(`Cancel invoice ${inv.invoiceNumber}?`)) { await cancelInvoice(inv.id!); } }}
+                  className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-red-50 text-red-600 border border-red-100 active:scale-95 transition-transform">
+                  <XCircle size={16} /> <span className="text-[9px] font-bold">Cancel</span>
+                </button>
+              ) : (
+                <span className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-slate-50 text-slate-300 border border-slate-100">
+                  <XCircle size={16} /> <span className="text-[9px] font-bold">Cancelled</span>
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       {previewInvoice && (
