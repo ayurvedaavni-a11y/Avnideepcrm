@@ -136,7 +136,7 @@ export function Login({ onContinueOffline }: Props) {
                   {isAdmin ? 'ADMIN LOGIN' : 'TELECALLER LOGIN'}
                 </div>
                 <p className="text-slate-400 text-xs">
-                  Sirf {isAdmin ? 'admin' : 'telecaller'} accounts yahan login kar sakte hain
+                  Only {isAdmin ? 'admin' : 'telecaller'} accounts can log in here
                 </p>
               </div>
 

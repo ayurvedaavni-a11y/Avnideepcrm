@@ -720,7 +720,7 @@ export function generateInvoicePDF(invoice: Invoice, companyCfg: any): jsPDF {
 
 export async function downloadInvoicePDF(invoice: Invoice) {
   if (!invoiceAllowed()) {
-    toast.error('Invoice sirf Admin dekh sakta hai');
+    toast.error('Only admins can view the invoice');
     return;
   }
   try {
@@ -742,7 +742,7 @@ export async function downloadInvoicePDF(invoice: Invoice) {
 
 export async function printInvoice(invoice: Invoice) {
   if (!invoiceAllowed()) {
-    toast.error('Invoice sirf Admin dekh sakta hai');
+    toast.error('Only admins can view the invoice');
     return;
   }
   try {

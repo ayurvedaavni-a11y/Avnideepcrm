@@ -260,7 +260,7 @@ function SettingsContent() {
           <p className="text-sm text-slate-600 mb-4">
             Telecallers get commission only on <span className="font-bold">Delivered Orders</span>.
             Example: ₹10,000 delivered business in a day at a 10% rate = ₹1,000 commission.
-            Ye rate <span className="font-bold">Telecaller Performance</span> page par live calculate hota hai.
+            This rate is calculated live on the <span className="font-bold">Telecaller Performance</span> page.
           </p>
           <div className="flex items-end gap-3 flex-wrap">
             <div>
