@@ -308,8 +308,8 @@ export function Team() {
                 Transfer or unassign all leads first, then delete.
               </p>
               <p className="text-xs text-slate-500">
-                Ya phir <span className="font-bold">"Transfer &amp; Delete"</span> karein — uski saari leads automatically
-                will be unassigned (back to the pool) and then the account will be deleted. This action cannot be cancelled.
+                Alternatively, use <span className="font-bold">"Transfer &amp; Delete"</span> — all their leads will
+                automatically be unassigned (back to the pool) and then the account will be deleted. This action cannot be cancelled.
               </p>
             </div>
             <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">

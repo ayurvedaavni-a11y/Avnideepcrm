@@ -67,7 +67,7 @@ export function Login({ onContinueOffline }: Props) {
             AVNIDEEP<span className="text-blue-400">CRM</span>
             <span className="text-xs text-blue-500 font-bold block mt-1 tracking-[0.3em]">PRO EDITION</span>
           </h1>
-          <p className="text-slate-400 text-sm mt-4">Online multi-user CRM — apna role chunein</p>
+          <p className="text-slate-400 text-sm mt-4">Online multi-user CRM — choose your role</p>
         </div>
 
         {role === null ? (
