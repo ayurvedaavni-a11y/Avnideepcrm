@@ -187,6 +187,7 @@ export function CreateInvoice() {
               name="invoice-customer-search"
               aria-label="Search customer"
               type="text"
+              autoComplete="search"
               placeholder="Search customer by name or mobile…"
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
@@ -238,6 +239,7 @@ export function CreateInvoice() {
                       }}
                       onFocus={() => setOpenDropdownIndex(idx)}
                       className="w-full p-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                      autoComplete="search"
                       placeholder="Search by product, SKU, HSN"
                     />
                     {openDropdownIndex === idx && suggestions.length > 0 && (

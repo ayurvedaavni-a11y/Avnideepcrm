@@ -305,6 +305,7 @@ export function Customers() {
               name="customer-search"
               aria-label="Search customers"
               type="text"
+              autoComplete="search"
               placeholder="Search by name or mobile..."
               value={searchTerm}
               onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}

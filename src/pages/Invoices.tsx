@@ -199,6 +199,7 @@ export function Invoices() {
             name="invoice-search"
             aria-label="Search invoices"
             type="text"
+            autoComplete="search"
             placeholder="Search invoice no, customer, mobile…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

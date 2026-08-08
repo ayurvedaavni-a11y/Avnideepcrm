@@ -526,6 +526,7 @@ export function LeadCenter() {
             name="lead-search"
             type="text"
             aria-label="Search leads"
+            autoComplete="search"
             placeholder="Search name, mobile or order ID..."
             value={mobileSearch}
             onChange={(e) => { setMobileSearch(e.target.value); setPage(0); }}

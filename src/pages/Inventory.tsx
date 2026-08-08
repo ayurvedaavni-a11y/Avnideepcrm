@@ -87,6 +87,7 @@ export function Inventory() {
             name="inventory-search"
             aria-label="Search inventory"
             type="text"
+            autoComplete="search"
             placeholder="Search by name, SKU, or category…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

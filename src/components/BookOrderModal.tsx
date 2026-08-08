@@ -364,6 +364,7 @@ export function BookOrderModal({ leadId, onClose }: Props) {
                   <input 
                     id="bookorder-product"
                     name="bookorder-product"
+                    autoComplete="search"
                     className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm focus:ring-4 focus:ring-blue-50 focus:border-blue-500 transition-all outline-none"
                     placeholder="Search inventory..."
                     value={formData.productSearch}

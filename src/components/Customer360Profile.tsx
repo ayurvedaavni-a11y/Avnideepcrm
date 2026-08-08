@@ -299,7 +299,7 @@ export function Customer360Profile({ customerId, isOpen, onClose }: Props) {
                 </div>
                 <div className="relative mb-3">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-                  <input id="customer360-order-search" name="customer360-order-search" aria-label="Search orders" type="text" placeholder="Search orders..." value={orderSearch}
+                  <input id="customer360-order-search" name="customer360-order-search" aria-label="Search orders" type="text" autoComplete="search" placeholder="Search orders..." value={orderSearch}
                     onChange={e => setOrderSearch(e.target.value)}
                     className="w-full pl-8 pr-3 py-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>

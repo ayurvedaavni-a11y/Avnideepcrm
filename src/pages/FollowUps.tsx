@@ -321,6 +321,7 @@ export function FollowUps() {
           name="followup-search"
           aria-label="Search follow-ups"
           type="text"
+          autoComplete="search"
           placeholder="Search by name, mobile, product, notes..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}

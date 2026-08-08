@@ -1017,6 +1017,7 @@ function OrderPipelineContent() {
                 id="order-search"
                 name="order-search"
                 type="text"
+                autoComplete="search"
                 placeholder="Search name, mobile, order, AWB, product..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
