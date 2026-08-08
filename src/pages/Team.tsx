@@ -134,7 +134,7 @@ export function Team() {
   };
 
   const handleChangeMobile = async (m: TeamProfile) => {
-    const next = window.prompt(`${m.full_name} ka naya mobile number (10 digit):`, m.mobile || '');
+    const next = window.prompt(`New mobile number for ${m.full_name} (10 digits):`, m.mobile || '');
     if (next === null) return;
     const digits = next.replace(/\D/g, '');
     if (digits.length !== 10) { toast.error('Enter a valid 10-digit mobile number'); return; }
@@ -151,7 +151,7 @@ export function Team() {
   };
 
   const changeRole = async (m: TeamProfile) => {
-    if (!window.confirm(`${m.full_name} ko ${m.role === 'admin' ? 'telecaller' : 'admin'} banana hai?`)) return;
+    if (!window.confirm(`Change ${m.full_name} to ${m.role === 'admin' ? 'telecaller' : 'admin'}?`)) return;
     setBusyId(m.id);
     try {
       const res = await setMemberRole(m.id, m.role === 'admin' ? 'telecaller' : 'admin');
@@ -166,13 +166,13 @@ export function Team() {
     <div className="space-y-6 max-w-4xl animate-in fade-in duration-300">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><Users className="text-blue-600" /> Team Management</h1>
-        <p className="text-slate-500 text-sm">Telecaller accounts banayein aur manage karein. Har member apne mobile + PIN se login karega.</p>
+        <p className="text-slate-500 text-sm">Create and manage telecaller accounts. Each member logs in with their mobile + PIN.</p>
       </div>
       {/* Create member card */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex items-center gap-3">
           <UserPlus className="text-emerald-600" />
-          <h2 className="text-lg font-bold text-slate-800 font-sans">Naya Member Add Karein</h2>
+          <h2 className="text-lg font-bold text-slate-800 font-sans">Add New Member</h2>
         </div>
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -221,7 +221,7 @@ export function Team() {
         {loading ? (
           <div className="p-8 text-center text-slate-400 text-sm">Loading members…</div>
         ) : members.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Abhi koi member nahi hai. Upar se pehla account banayein.</div>
+          <div className="p-8 text-center text-slate-400 text-sm">No members yet. Create the first account above.</div>
         ) : (
           <div className="overflow-x-auto">
             <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
@@ -301,8 +301,8 @@ export function Team() {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-slate-700">
-                <span className="font-bold">{deleteTarget.full_name}</span> ({deleteTarget.mobile || '—'}) ke paas{' '}
-                <span className="font-black text-red-600">{(deleteTarget as any).lead_count ?? 0} assigned leads</span> hain.
+                <span className="font-bold">{deleteTarget.full_name}</span> ({deleteTarget.mobile || '—'}) has{' '}
+                <span className="font-black text-red-600">{(deleteTarget as any).lead_count ?? 0} assigned leads</span>.
               </p>
               <p className="text-sm text-slate-600 bg-amber-50 border border-amber-200 rounded-xl p-3">
                 Transfer or unassign all leads first, then delete.
@@ -344,7 +344,7 @@ export function Team() {
                 They will use this PIN to log in.
               </p>
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Naya PIN (6-8 digits)</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">New PIN (6-8 digits)</label>
                 <input
                   type="password"
                   inputMode="numeric"

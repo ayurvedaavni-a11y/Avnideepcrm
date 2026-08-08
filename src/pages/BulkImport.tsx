@@ -438,7 +438,7 @@ export function BulkImport() {
 
       {/* Duplicate policy */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Duplicate Mobile Policy (existing customer mile to kya karein)</label>
+        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Duplicate Mobile Policy (what to do if an existing customer is found)</label>
         <div className="flex flex-wrap gap-2">
           {([['skip', 'Skip Duplicate'], ['update', 'Update Existing Customer'], ['merge', 'Merge Lead History']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setDupMode(key)}
@@ -458,7 +458,7 @@ export function BulkImport() {
       >
         <input ref={fileInputRef} type="file" accept=".xlsx,.csv,.txt" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
         <UploadCloud className={`mx-auto mb-3 ${dragOver ? 'text-blue-600' : 'text-slate-400'}`} size={36} />
-        <p className="text-sm font-bold text-slate-700">{dragOver ? 'Drop file yahan chhodein…' : 'Click or drag & drop a file here'}</p>
+        <p className="text-sm font-bold text-slate-700">{dragOver ? 'Drop file here…' : 'Click or drag & drop a file here'}</p>
         <p className="text-xs text-slate-500 mt-1">.xlsx • .csv • scientific notation supported • 10,000+ rows OK</p>
       </div>
 

@@ -234,7 +234,7 @@ async function handleRegister(env: Env, request: Request, user: Record<string, a
     return json({ ok: true, userId: String((res.meta as any)?.last_row_id ?? '') });
   } catch (e: any) {
     if (String(e?.message || '').includes('UNIQUE')) {
-      return json({ error: 'Is mobile number ka account pehle se maujood hai.' }, 409);
+      return json({ error: 'An account already exists for this mobile number.' }, 409);
     }
     throw e;
   }
@@ -296,7 +296,7 @@ async function handleMemberPatch(env: Env, request: Request, user: Record<string
     const dup = await env.DB.prepare('SELECT id FROM users WHERE mobile = ? AND id <> ?')
       .bind(mobile, targetId)
       .first();
-    if (dup) return json({ error: 'Is mobile number ka account pehle se maujood hai.' }, 409);
+    if (dup) return json({ error: 'An account already exists for this mobile number.' }, 409);
     sets.push('mobile = ?');
     values.push(mobile);
   }
@@ -621,7 +621,7 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
       const ownerName = existing ? String(existing.assigned_agent ?? '') : '';
       const nameFallback = (!ownerId || ownerId === '0') && ownerName === user.full_name;
       if (existing && ownerId !== String(user.id) && !nameFallback) {
-        return json({ error: 'Forbidden — ye lead kisi aur telecaller ko assigned hai' }, 403);
+        return json({ error: 'Forbidden — this lead is assigned to another telecaller' }, 403);
       }
       for (const p of ['mobile', 'customer_id', 'customer_name', 'source', 'expected_amount', 'assigned_agent', 'assigned_to']) {
         delete data[p];

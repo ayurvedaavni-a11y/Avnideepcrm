@@ -32,8 +32,8 @@ export function PwaUpdater() {
           <>
             <RefreshCw size={18} className="text-blue-400 shrink-0" />
             <div className="min-w-0">
-              <p className="text-sm font-bold">Naya update available hai</p>
-              <p className="text-[11px] text-slate-400">Latest version install karein.</p>
+              <p className="text-sm font-bold">A new update is available</p>
+              <p className="text-[11px] text-slate-400">Install the latest version.</p>
             </div>
             <button
               onClick={() => updateServiceWorker(true)}

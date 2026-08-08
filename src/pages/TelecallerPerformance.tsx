@@ -112,7 +112,7 @@ export function TelecallerPerformance() {
             <TrendingUp className="text-blue-600" size={26} /> {isAdmin ? 'Telecaller Performance & Commission' : 'My Performance & Commission'}
           </h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            Commission sirf <span className="font-bold text-emerald-600">Delivered Orders</span> par · Current rate: <span className="font-bold">{rate}%</span>
+            Commission is only on <span className="font-bold text-emerald-600">Delivered Orders</span> · Current rate: <span className="font-bold">{rate}%</span>
           </p>
         </div>
         <button onClick={load} className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition shadow-sm">

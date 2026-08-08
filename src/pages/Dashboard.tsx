@@ -233,7 +233,7 @@ export function Dashboard() {
             <PhoneCall size={18} className="text-blue-600" /> Today's Performance by Status
           </h3>
           {statusChips.length === 0 ? (
-            <p className="text-sm text-slate-400">Aaj abhi tak koi call log nahi hua.</p>
+            <p className="text-sm text-slate-400">No call logs recorded today yet.</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {statusChips.map(([st, cnt]) => (
@@ -265,7 +265,7 @@ export function Dashboard() {
               </thead>
               <tbody>
                 {myLeads.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">Abhi aapko koi lead assign nahi hui hai.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-400">No leads have been assigned to you yet.</td></tr>
                 )}
                 {myLeads.slice(0, 10).map(l => (
                   <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
@@ -333,7 +333,7 @@ export function Dashboard() {
           <TrendingUp size={18} className="text-blue-600" /> Top Telecallers (by confirmed orders)
         </h3>
         {adminTc.topTelecallers.length === 0 ? (
-          <p className="text-sm text-slate-400">Abhi koi call log nahi hai.</p>
+          <p className="text-sm text-slate-400">No call logs yet.</p>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             {adminTc.topTelecallers.map((t, i) => (

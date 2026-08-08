@@ -119,7 +119,7 @@ export function PwaInstallButton({ variant = 'light' }: { variant?: 'light' | 'd
               </div>
               <div className="flex gap-3">
                 <span className="w-8 h-8 shrink-0 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center font-black">3</span>
-                <p className="flex items-center gap-1.5"><Monitor size={14} /> Desktop par bhi browser menu se <b>Install app</b> option use karein.</p>
+                <p className="flex items-center gap-1.5"><Monitor size={14} /> On desktop too, use the <b>Install app</b> option from the browser menu.</p>
               </div>
               <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-50">
                 Firefox does not support PWA install — please use Chrome/Edge.

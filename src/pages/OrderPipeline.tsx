@@ -961,7 +961,7 @@ function OrderPipelineContent() {
         {tcOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-slate-400 bg-white rounded-2xl border border-slate-200">
             <ShoppingCart size={40} className="text-slate-300 mb-3" />
-            <p className="font-medium">Koi order nahi</p>
+            <p className="font-medium">No orders yet</p>
             <p className="text-xs mt-1">Orders created with 'Order Booked' status in the Lead Center will appear here.</p>
           </div>
         ) : (
@@ -1090,7 +1090,7 @@ function OrderPipelineContent() {
                   <Truck size={20} />
                 </div>
                 <p className="font-bold text-blue-700 text-sm">{shippedPlus.length} order(s) Shipped+</p>
-                <p className="text-[11px] text-blue-500 mt-1">Courier Management (Logistics) module mein manage hote hain.</p>
+                <p className="text-[11px] text-blue-500 mt-1">Managed in the Courier Management (Logistics) module.</p>
                 <div className="flex flex-wrap gap-1.5 mt-3 justify-center">
                   {SHIPMENT_CHIPS.filter(c => shippedPlus.some(o => o.status === c.key)).map(c => {
                     const n = shippedPlus.filter(o => o.status === c.key).length;
