@@ -122,7 +122,7 @@ export function PwaInstallButton({ variant = 'light' }: { variant?: 'light' | 'd
                 <p className="flex items-center gap-1.5"><Monitor size={14} /> Desktop par bhi browser menu se <b>Install app</b> option use karein.</p>
               </div>
               <p className="text-[11px] text-slate-400 pt-1 border-t border-slate-50">
-                Firefox mein PWA install supported nahi hai — Chrome/Edge use karein.
+                Firefox does not support PWA install — please use Chrome/Edge.
               </p>
             </div>
 

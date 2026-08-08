@@ -122,7 +122,7 @@ export function Login({ onContinueOffline }: Props) {
                 onClick={() => { setRole(null); setError(''); }}
                 className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition"
               >
-                <ArrowLeft size={14} /> Role change karein
+                <ArrowLeft size={14} /> Change role
               </button>
 
               <div className="text-center">
@@ -197,14 +197,14 @@ export function Login({ onContinueOffline }: Props) {
                 onClick={onContinueOffline}
                 className="w-full text-slate-400 hover:text-slate-200 text-sm flex items-center justify-center gap-1.5 transition"
               >
-                <WifiOff size={14} /> Internet nahi hai? Offline mode mein chalein
+                <WifiOff size={14} /> No internet? Switch to offline mode
               </button>
 
               <PwaInstallButton variant="dark" />
             </form>
 
             <p className="text-center text-[11px] text-slate-600 mt-6">
-              Login ke baad role verify hota hai — galat role se access nahi milega. Data Cloudflare D1 cloud par securely sync hota hai
+              Role is verified after login — the wrong role cannot access. Data syncs securely to the Cloudflare D1 cloud
             </p>
           </div>
         )}

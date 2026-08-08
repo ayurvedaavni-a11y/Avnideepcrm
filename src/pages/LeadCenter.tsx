@@ -877,7 +877,7 @@ function BulkAssignModal({ count, telecallers, onClose, onAssign }: {
           </div>
           <label htmlFor="lead-reassign" className="flex items-center gap-2 text-sm text-slate-600">
             <input id="lead-reassign" name="lead-reassign" type="checkbox" checked={reassign} onChange={(e) => setReassign(e.target.checked)} className="w-4 h-4 accent-blue-600" />
-            Already-assigned leads ko bhi move karein (reassign)
+            Also move already-assigned leads (reassign)
           </label>
         </div>
         <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">

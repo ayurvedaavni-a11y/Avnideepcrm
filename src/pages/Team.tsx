@@ -305,11 +305,11 @@ export function Team() {
                 <span className="font-black text-red-600">{(deleteTarget as any).lead_count ?? 0} assigned leads</span> hain.
               </p>
               <p className="text-sm text-slate-600 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                Pehle saare leads transfer ya unassign karein, phir delete karein.
+                Transfer or unassign all leads first, then delete.
               </p>
               <p className="text-xs text-slate-500">
                 Ya phir <span className="font-bold">"Transfer &amp; Delete"</span> karein — uski saari leads automatically
-                unassigned ho jayengi (pool mein wapas) aur phir account delete hoga. Ye action cancel nahi ho sakta.
+                will be unassigned (back to the pool) and then the account will be deleted. This action cannot be cancelled.
               </p>
             </div>
             <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">

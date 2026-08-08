@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="p-6 bg-red-50 rounded-lg border border-red-200 m-4">
           <h2 className="text-xl font-bold text-red-700 mb-2">Module error occurred</h2>
           <p className="text-red-600 mb-4">
-            Ek unexpected error aaya. Application baaki kaam kar rahi hai.
+            An unexpected error occurred. The rest of the application is still working.
           </p>
           {error && (
             <div className="mb-4">

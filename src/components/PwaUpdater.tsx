@@ -5,8 +5,8 @@ import WifiOff from 'lucide-react/dist/esm/icons/wifi-off'
 
 /**
  * PWA service-worker lifecycle:
- * - First load (after SW caches): shows "App offline use ke liye ready hai".
- * - New build available: shows "Naya update available" prompt → update instantly.
+ * - First load (after SW caches): shows "App is ready for offline use".
+ * - New build available: shows "New update available" prompt → update instantly.
  * Works only in browsers; Electron (file://) silently skips SW registration.
  */
 export function PwaUpdater() {

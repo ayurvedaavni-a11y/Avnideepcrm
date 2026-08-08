@@ -258,8 +258,8 @@ function SettingsContent() {
         </div>
         <div className="p-6">
           <p className="text-sm text-slate-600 mb-4">
-            Telecallers ko commission sirf <span className="font-bold">Delivered Orders</span> par milega.
-            Example: ek din me ₹10,000 ka delivered business, 10% rate par = ₹1,000 commission.
+            Telecallers get commission only on <span className="font-bold">Delivered Orders</span>.
+            Example: ₹10,000 delivered business in a day at a 10% rate = ₹1,000 commission.
             Ye rate <span className="font-bold">Telecaller Performance</span> page par live calculate hota hai.
           </p>
           <div className="flex items-end gap-3 flex-wrap">
@@ -352,7 +352,7 @@ function SettingsContent() {
           <div className="flex justify-between items-center p-4 bg-red-50 rounded-lg border border-red-200">
             <div>
               <h3 className="font-bold text-red-800">Danger Zone: Factory Reset</h3>
-              <p className="text-sm text-red-600">Wipe all data, customers, and orders permanently — cloud D1 se bhi (admin PIN confirm).</p>
+              <p className="text-sm text-red-600">Wipe all data, customers, and orders permanently — from the cloud D1 too (admin PIN required).</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {resetArmed && (

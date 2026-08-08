@@ -495,7 +495,7 @@ export function BulkImport() {
           <div className="w-full bg-slate-100 rounded-full h-2.5">
             <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-200" style={{ width: `${progress}%` }} />
           </div>
-          <button onClick={() => { cancelledRef.current = true; toast('Import cancel ho raha hai…', { icon: '✋' }); }}
+          <button onClick={() => { cancelledRef.current = true; toast('Cancelling import…', { icon: '✋' }); }}
             className="px-4 py-1.5 rounded-lg text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 flex items-center gap-1">
             <X size={13} /> Cancel Import
           </button>
