@@ -1,3 +1,4 @@
+import { execSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import react from "@vitejs/plugin-react";
@@ -6,6 +7,21 @@ import { VitePWA } from "vite-plugin-pwa";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Unique build identifier (short git SHA). Injected as __APP_VERSION__ and
+// exposed via <html data-app-version> so deployments can be verified and the
+// PWA update flow can be tested (A → B → C) without guessing.
+const BUILD_VERSION = (() => {
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return "dev";
+  }
+})();
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -40,6 +56,13 @@ export default defineConfig({
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         cleanupOutdatedCaches: true,
+        // ROOT-CAUSE FIX (PWA Update button did nothing): without this, after
+        // SKIP_WAITING the new service worker activates but never claims the
+        // already-open page, so `controllerchange` never fires and the
+        // prompt-mode reload (tied to that event) never runs. clientsClaim makes
+        // the new SW take control of open pages on activation, which fires
+        // controllerchange deterministically → update actually applies.
+        clientsClaim: true,
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         // Web Push handlers (callback reminders) — injected into the generated
         // service worker. Lives in public/ so it's copied to dist root.
@@ -48,6 +71,9 @@ export default defineConfig({
       devOptions: { enabled: false },
     }),
   ],
+  define: {
+    __APP_VERSION__: JSON.stringify(BUILD_VERSION),
+  },
   server: { host: '0.0.0.0', port: 5173, allowedHosts: true },
   resolve: {
     alias: {
