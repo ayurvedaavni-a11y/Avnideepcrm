@@ -1167,8 +1167,17 @@ async function handleLeadsAssign(env: Env, request: Request, user: Record<string
     if (eligible.length) {
       const eIds = eligible.map((r) => r.id);
       const ePh = eIds.map(() => '?').join(', ');
+      const isUnassign = !assignToId || assignToId === '' || assignToId === '0';
+      // STATUS PROMOTION (root-cause fix): assigning a New Lead moves it to the
+      // 'Assigned' pipeline stage so it appears in the telecaller's Leads →
+      // Assigned tab (that tab filters by status = 'Assigned'). Unassigning
+      // reverts 'Assigned' back to 'New Lead'. Mid-workflow statuses are
+      // NEVER overwritten.
+      const statusSql = isUnassign
+        ? `status = CASE WHEN status = 'Assigned' THEN 'New Lead' ELSE status END`
+        : `status = CASE WHEN status IS NULL OR status = '' OR status = 'New Lead' THEN 'Assigned' ELSE status END`;
       const upd = await env.DB.prepare(
-        `UPDATE crm_leads SET assigned_to = ?, assigned_agent = ?, updated_at = ? WHERE id IN (${ePh})`
+        `UPDATE crm_leads SET assigned_to = ?, assigned_agent = ?, ${statusSql}, updated_at = ? WHERE id IN (${ePh})`
       ).bind(assignToId, name, now, ...eIds).run();
       changed += Number((upd.meta as any)?.changes ?? 0);
     }

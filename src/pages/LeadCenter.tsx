@@ -653,7 +653,10 @@ export function LeadCenter() {
                   const l = await db.leads.get(id);
                   const unassigned = !l || !l.assignedTo || l.assignedTo === '' || l.assignedTo === '0';
                   if (!reassign && !unassigned) continue;
-                  await db.leads.update(id, { assignedTo: tc.id, assignedAgent: tc.full_name, updatedAt: now });
+                  // Mirror the server's status promotion ('New Lead' → 'Assigned')
+                  // so the Assigned tab (status filter) shows it immediately.
+                  const nextStatus = (!l || !l.status || l.status === 'New Lead') ? 'Assigned' : l.status;
+                  await db.leads.update(id, { assignedTo: tc.id, assignedAgent: tc.full_name, status: nextStatus, updatedAt: now });
                 }
                 res = { assigned: r.assigned, skipped: bulkAssignLead.leadIds.length - r.assigned };
                 usedServer = true;
