@@ -652,7 +652,7 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
   //    pincode, district, notes  (Req: address/landmark/city/state/pincode/
   //    alt number/notes/customer remark/customer name)
   //  - BLOCKED: mobile (identity — kabhi nahi badal sakta), plus all
-  //    financial/counter fields (totals, risk, status counters) jo sirf
+  //    financial/counter fields (totals, risk, status counters) that only
   //    system/admin update karte hain.
   if (user && user.role !== 'admin' && table === 'crm_customers') {
     for (const p of ['mobile', 'total_orders', 'delivered', 'rto', 'cancelled', 'fake_count', 'total_spend', 'last_order_date', 'risk_level', 'current_status']) {

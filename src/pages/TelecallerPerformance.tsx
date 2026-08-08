@@ -221,7 +221,7 @@ export function TelecallerPerformance() {
 
       <p className="text-xs text-slate-400">
         ⓘ These numbers are calculated from the live D1 database — Orders, Logistics, Dashboard and Commission can never mismatch.
-        Commission formula: Delivered Amount × {rate}% (sirf Delivered orders, RTO/Cancelled/Pending exclude).
+        Commission formula: Delivered Amount × {rate}% (only Delivered orders — RTO/Cancelled/Pending excluded).
       </p>
     </div>
   );
