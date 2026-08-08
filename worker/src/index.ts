@@ -663,7 +663,7 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
   // of the 8 sales-pipeline statuses. Everything else (Fake Lead, Duplicate,
   // NDR, fulfilment statuses, terminal flags) is admin-only. 'Followup' is the
   // canonical stored value for the displayed 'Follow-up'.
-  if (user && user.role !== 'admin' && table === 'crm_leads' && data.status !== undefined) {
+  if (user && user.role !== 'admin' && table === 'crm_leads' && typeof data.status === 'string') {
     const LEAD_STATUS_WHITELIST = [
       'New Lead', 'Calling', 'Ring', 'Busy', 'Interested', 'Followup',
       'Not Interested', 'Order Booked',
