@@ -31,12 +31,12 @@ export function Login({ onContinueOffline }: Props) {
     if (busy || !role) return;
     setError('');
     const digits = mobile.replace(/\D/g, '');
-    if (digits.length < 10) { setError('Sahi mobile number daalein (10 digit).'); return; }
-    if (pin.trim().length < 4) { setError('Sahi PIN daalein.'); return; }
+    if (digits.length < 10) { setError('Enter a valid 10-digit mobile number.'); return; }
+    if (pin.trim().length < 4) { setError('Enter a valid PIN.'); return; }
     setBusy(true);
     try {
       const res = await login(digits, pin, role);
-      if (!res.ok) setError(res.error || 'Login fail hua.');
+      if (!res.ok) setError(res.error || 'Login failed.');
     } finally {
       setBusy(false);
     }

@@ -122,7 +122,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Customer se kya baat hui? Previous notes kabhi overwrite nahi hote."
+              placeholder="What was discussed with the customer? Previous notes are never overwritten."
               rows={3}
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             />
@@ -141,7 +141,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
               inputMode="numeric"
               value={durationMin}
               onChange={(e) => setDurationMin(e.target.value.replace(/[^0-9.]/g, ''))}
-              placeholder="e.g. 5 — kitni der baat hui"
+              placeholder="e.g. 5 — call duration in minutes"
               className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             />
           </div>
@@ -178,7 +178,7 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
               type="text"
               value={reminderReason}
               onChange={(e) => setReminderReason(e.target.value)}
-              placeholder="Reminder reason (e.g. evening par dobara call karna hai)"
+              placeholder="Reminder reason (e.g. call again in the evening)"
               className="mt-3 w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             />
           </div>

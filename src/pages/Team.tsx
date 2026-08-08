@@ -55,18 +55,18 @@ export function Team() {
   const handleCreate = async () => {
     if (creating) return;
     const digits = mobile.replace(/\D/g, '');
-    if (!name.trim()) { toast.error('Naam daalein'); return; }
-    if (digits.length < 10) { toast.error('Sahi 10-digit mobile number daalein'); return; }
-    if (!/^\d{6,8}$/.test(pin.trim())) { toast.error('PIN 6-8 digits ka hona chahiye'); return; }
+    if (!name.trim()) { toast.error('Enter a name'); return; }
+    if (digits.length < 10) { toast.error('Enter a valid 10-digit mobile number'); return; }
+    if (!/^\d{6,8}$/.test(pin.trim())) { toast.error('PIN must be 6-8 digits'); return; }
     setCreating(true);
     try {
       const res = await createTeamMember(name.trim(), digits, pin.trim(), role);
-      if (!res.ok) { toast.error(res.error || 'Account banane mein problem hui'); return; }
+      if (!res.ok) { toast.error(res.error || 'There was a problem creating the account'); return; }
       if (role === 'admin' && res.userId) {
         const promote = await setMemberRole(res.userId, 'admin');
-        if (!promote.ok) toast.error('Account bana, lekin admin promote nahi ho paya: ' + (promote.error || ''));
+        if (!promote.ok) toast.error('Account created, but could not be promoted to admin: ' + (promote.error || ''));
       }
-      toast.success('Account ban gaya! Member ab login kar sakta hai.');
+      toast.success('Account created! The member can now log in.');
       setName(''); setMobile(''); setPin(''); setRole('telecaller');
       await load();
     } finally {
@@ -78,7 +78,7 @@ export function Team() {
     setBusyId(m.id);
     try {
       const res = await setMemberActive(m.id, !m.is_active);
-      if (!res.ok) toast.error(res.error || 'Update fail hua');
+      if (!res.ok) toast.error(res.error || 'Update failed');
       await load();
     } finally {
       setBusyId(null);
@@ -95,7 +95,7 @@ export function Team() {
       setDeleteTarget(m);
       return;
     }
-    if (!window.confirm(`${m.full_name} (${m.mobile}) ko DELETE karna hai? Ye member turant logout ho jayega aur login nahi kar payega.`)) return;
+    if (!window.confirm(`Delete ${m.full_name} (${m.mobile})? This member will be logged out immediately and will not be able to log in again.`)) return;
     void doDelete(m, false);
   };
 
@@ -104,10 +104,10 @@ export function Team() {
     try {
       const res = await deleteMember(m.id, force);
       if (!res.ok) {
-        toast.error(res.error || 'Delete fail hua');
+        toast.error(res.error || 'Delete failed');
         return; // keep the protection modal open so the admin can retry
       }
-      toast.success(force ? `${m.full_name} delete ho gaya — uski leads pool mein wapas aa gayi hain` : `${m.full_name} delete ho gaya`);
+      toast.success(force ? `${m.full_name} deleted — their leads are back in the pool` : `${m.full_name} deleted`);
       setDeleteTarget(null);
       await load();
     } finally {
@@ -120,12 +120,12 @@ export function Team() {
 
   const handlePinReset = async () => {
     if (!pinResetMember || pinBusy) return;
-    if (!/^\d{6,8}$/.test(newPin.trim())) { toast.error('PIN 6-8 digits ka hona chahiye'); return; }
+    if (!/^\d{6,8}$/.test(newPin.trim())) { toast.error('PIN must be 6-8 digits'); return; }
     setPinBusy(true);
     try {
       const res = await resetMemberPin(pinResetMember.id, newPin.trim());
-      if (!res.ok) { toast.error(res.error || 'PIN change nahi hua'); return; }
-      toast.success(`${pinResetMember.full_name} ka PIN change ho gaya!`);
+      if (!res.ok) { toast.error(res.error || 'PIN change failed'); return; }
+      toast.success(`${pinResetMember.full_name}\'s PIN changed!`);
       setPinResetMember(null);
       setNewPin('');
     } finally {
@@ -137,14 +137,14 @@ export function Team() {
     const next = window.prompt(`${m.full_name} ka naya mobile number (10 digit):`, m.mobile || '');
     if (next === null) return;
     const digits = next.replace(/\D/g, '');
-    if (digits.length !== 10) { toast.error('Sahi 10-digit mobile number daalein'); return; }
+    if (digits.length !== 10) { toast.error('Enter a valid 10-digit mobile number'); return; }
     setBusyId(m.id);
     try {
       await api.setMember(m.id, { mobile: digits });
-      toast.success(`${m.full_name} ka mobile number update ho gaya!`);
+      toast.success(`${m.full_name}\'s mobile number updated!`);
       await load();
     } catch (e: any) {
-      toast.error(e?.message || 'Mobile change nahi hua');
+      toast.error(e?.message || 'Mobile change failed');
     } finally {
       setBusyId(null);
     }
@@ -155,7 +155,7 @@ export function Team() {
     setBusyId(m.id);
     try {
       const res = await setMemberRole(m.id, m.role === 'admin' ? 'telecaller' : 'admin');
-      if (!res.ok) toast.error(res.error || 'Update fail hua');
+      if (!res.ok) toast.error(res.error || 'Update failed');
       await load();
     } finally {
       setBusyId(null);
@@ -208,7 +208,7 @@ export function Team() {
             className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg font-bold flex items-center gap-2 transition shadow-sm">
             <UserPlus size={16} /> {creating ? 'Creating…' : 'Create Account'}
           </button>
-          <p className="text-xs text-slate-400">Note: Naye member ka account turant active hota hai. PIN 6-8 digits ka hona chahiye.</p>
+          <p className="text-xs text-slate-400">Note: New member accounts are active immediately. PIN must be 6-8 digits.</p>
         </div>
       </div>
 
@@ -264,12 +264,12 @@ export function Team() {
                         <Power size={16} />
                       </button>
                       <button onClick={() => handleChangeMobile(m)} disabled={busyId === m.id}
-                        title="Mobile Number Change Karein"
+                        title="Change Mobile Number"
                         className="p-2 rounded-lg text-sky-500 hover:bg-sky-50 hover:text-sky-600 transition disabled:opacity-40 disabled:cursor-not-allowed">
                         <Smartphone size={16} />
                       </button>
                       <button onClick={() => { setNewPin(''); setPinResetMember(m); }} disabled={busyId === m.id}
-                        title="PIN Change Karein"
+                        title="Change PIN"
                         className="p-2 rounded-lg text-amber-500 hover:bg-amber-50 hover:text-amber-600 transition disabled:opacity-40 disabled:cursor-not-allowed">
                         <KeyRound size={16} />
                       </button>
@@ -340,8 +340,8 @@ export function Team() {
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-slate-600">
-                <span className="font-bold">{pinResetMember.full_name}</span> ({pinResetMember.mobile || '—'}) ka naya login PIN daalein.
-                Is PIN se woh login karega.
+                Set a new login PIN for <span className="font-bold">{pinResetMember.full_name}</span> ({pinResetMember.mobile || '—'}).
+                They will use this PIN to log in.
               </p>
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Naya PIN (6-8 digits)</label>
@@ -364,7 +364,7 @@ export function Team() {
               </button>
               <button onClick={handlePinReset} disabled={pinBusy || !newPin.trim()}
                 className="px-5 py-2 rounded-lg font-bold text-white bg-amber-600 hover:bg-amber-700 transition disabled:opacity-60">
-                {pinBusy ? 'Change ho raha hai…' : 'PIN Change Karein'}
+                {pinBusy ? 'Changing…' : 'Change PIN'}
               </button>
             </div>
           </div>

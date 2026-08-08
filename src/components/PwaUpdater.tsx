@@ -44,7 +44,7 @@ export function PwaUpdater() {
             <button
               onClick={() => setNeedRefresh(false)}
               className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition"
-              title="Baad mein"
+              title="Later"
             >
               <X size={14} />
             </button>

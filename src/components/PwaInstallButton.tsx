@@ -98,24 +98,24 @@ export function PwaInstallButton({ variant = 'light' }: { variant?: 'light' | 'd
               {isAndroid() && (
                 <div className="flex gap-3">
                   <span className="w-8 h-8 shrink-0 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-black">1</span>
-                  <p>Chrome browser ke address bar ke <b>right side</b> install icon par click karein (ya ⋮ menu → <b>Install app</b>).</p>
+                  <p>In Chrome, click the <b>install icon</b> on the <b>right side</b> of the address bar (or the ⋮ menu → <b>Install app</b>).</p>
                 </div>
               )}
               {isIOS() && (
                 <div className="flex gap-3">
                   <span className="w-8 h-8 shrink-0 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-black">1</span>
-                  <p>Safari ke <b>Share</b> (⬆️) button par tap karein → <b>Add to Home Screen</b> → Add.</p>
+                  <p>In Safari, tap the <b>Share</b> (⬆️) button → <b>Add to Home Screen</b> → Add.</p>
                 </div>
               )}
               {!isAndroid() && !isIOS() && (
                 <div className="flex gap-3">
                   <span className="w-8 h-8 shrink-0 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-black">1</span>
-                  <p><b>Chrome / Edge</b> browser mein address bar ke right side install (⬇️) icon par click karein → <b>Install</b>.</p>
+                  <p>In <b>Chrome / Edge</b>, click the install (⬇️) icon on the right side of the address bar → <b>Install</b>.</p>
                 </div>
               )}
               <div className="flex gap-3">
                 <span className="w-8 h-8 shrink-0 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-black">2</span>
-                <p>Install hone ke baad app desktop / home screen par <b>app icon</b> ki tarah khulega — fullscreen, offline support ke saath.</p>
+                <p>Once installed, the app will open like a <b>native app</b> from your desktop / home screen — fullscreen, with offline support.</p>
               </div>
               <div className="flex gap-3">
                 <span className="w-8 h-8 shrink-0 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center font-black">3</span>

@@ -74,7 +74,7 @@ async function request<T = any>(path: string, opts: RequestOptions = {}): Promis
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError('Internet connection check karein.', 0);
+    throw new ApiError('Please check your internet connection.', 0);
   }
   let data: any = null;
   try {

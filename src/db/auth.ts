@@ -25,12 +25,12 @@ export function normalizeMobile(mobile: string): string {
 export function friendlyAuthError(error: any): string {
   const msg = error?.message || String(error);
   const lower = msg.toLowerCase();
-  if (lower.includes('galat') || lower.includes('invalid login')) return 'Mobile number ya PIN galat hai. Dobara try karein.';
-  if (lower.includes('account active nahi')) return 'Account active nahi hai. Admin se contact karein.';
-  if (lower.includes('bahut saare') || lower.includes('rate limit') || lower.includes('too many')) return 'Bahut saare attempts — thodi der baad try karein.';
-  if (lower.includes('pehle se maujood') || lower.includes('already registered')) return 'Is mobile number ka account pehle se maujood hai.';
-  if (lower.includes('unauthorized') || lower.includes('session expire') || msg.includes('401')) return 'Session expire ho gaya — dobara login karein.';
-  if (lower.includes('internet') || lower.includes('network') || lower.includes('failed to fetch')) return 'Internet connection check karein.';
+  if (lower.includes('galat') || lower.includes('invalid login')) return 'Wrong mobile number or PIN. Please try again.';
+  if (lower.includes('account active nahi')) return 'Account is not active. Please contact the admin.';
+  if (lower.includes('bahut saare') || lower.includes('rate limit') || lower.includes('too many')) return 'Too many attempts — please try again in a while.';
+  if (lower.includes('pehle se maujood') || lower.includes('already registered')) return 'An account already exists for this mobile number.';
+  if (lower.includes('unauthorized') || lower.includes('session expire') || msg.includes('401')) return 'Session expired — please log in again.';
+  if (lower.includes('internet') || lower.includes('network') || lower.includes('failed to fetch')) return 'Please check your internet connection.';
   return msg;
 }
 
@@ -174,7 +174,7 @@ export async function setMemberRole(id: string, role: TeamRole) {
 export async function resetMemberPin(id: string, newPin: string): Promise<{ ok: boolean; error?: string }> {
   const pin = newPin.trim();
   if (!/^\d{6,8}$/.test(pin)) {
-    return { ok: false, error: 'PIN 6-8 digits ka hona chahiye' };
+    return { ok: false, error: 'PIN must be 6-8 digits' };
   }
   try {
     await api.setMember(id, { pin });

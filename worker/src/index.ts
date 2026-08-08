@@ -197,16 +197,16 @@ async function handleLogin(env: Env, request: Request): Promise<Response> {
   const pin = String(body.pin || '').trim();
   const user = await env.DB.prepare('SELECT * FROM users WHERE mobile = ?').bind(mobile).first();
   if (!user) {
-    if (await recordLoginFailure(env, ip)) return json({ error: 'Bahut saare attempts — thodi der baad try karein.' }, 429);
-    return json({ error: 'Mobile number ya PIN galat hai. Dobara try karein.' }, 401);
+    if (await recordLoginFailure(env, ip)) return json({ error: 'Too many attempts — please try again in a while.' }, 429);
+    return json({ error: 'Wrong mobile number or PIN. Please try again.' }, 401);
   }
   const iters = pbkdf2Iters(env);
   const okHash = await verifyPin(pin, String((user as any).pin_hash), iters);
   if (!okHash) {
-    if (await recordLoginFailure(env, ip)) return json({ error: 'Bahut saare attempts — thodi der baad try karein.' }, 429);
-    return json({ error: 'Mobile number ya PIN galat hai. Dobara try karein.' }, 401);
+    if (await recordLoginFailure(env, ip)) return json({ error: 'Too many attempts — please try again in a while.' }, 429);
+    return json({ error: 'Wrong mobile number or PIN. Please try again.' }, 401);
   }
-  if (!(user as any).is_active) return json({ error: 'Account active nahi hai. Admin se contact karein.' }, 403);
+  if (!(user as any).is_active) return json({ error: 'Account is not active. Please contact the admin.' }, 403);
 
   const profile = profileOf(user as Record<string, any>);
   const token = await signJwt({ sub: String(profile.id), mobile, role: profile.role }, env.AUTH_SECRET, SESSION_TTL_SEC);
@@ -302,14 +302,14 @@ async function handleMemberPatch(env: Env, request: Request, user: Record<string
   }
   if (body.is_active !== undefined) {
     if (isSelf && !body.is_active) {
-      return json({ error: 'Apna account khud deactivate nahi kar sakte' }, 400);
+      return json({ error: 'You cannot deactivate your own account' }, 400);
     }
     sets.push('is_active = ?');
     values.push(body.is_active ? 1 : 0);
   }
   if (body.role === 'admin' || body.role === 'telecaller') {
     if (isSelf && body.role !== 'admin') {
-      return json({ error: 'Apna role khud nahi badal sakte' }, 400);
+      return json({ error: 'You cannot change your own role' }, 400);
     }
     sets.push('role = ?');
     values.push(body.role);
@@ -324,7 +324,7 @@ async function handleMemberPatch(env: Env, request: Request, user: Record<string
         .bind(targetId)
         .first();
       if (Number((admins as any)?.c ?? 0) === 0) {
-        return json({ error: 'Last admin ko block/demote nahi kar sakte' }, 400);
+        return json({ error: 'You cannot block/demote the last admin' }, 400);
       }
     }
   }
@@ -357,7 +357,7 @@ async function handleMemberDelete(env: Env, request: Request, user: Record<strin
   const denied = requireAdmin(user);
   if (denied) return denied;
   const targetId = Number(id);
-  if (String(id) === String(user!.id)) return json({ error: 'Apna account delete nahi kar sakte' }, 400);
+  if (String(id) === String(user!.id)) return json({ error: 'You cannot delete your own account' }, 400);
   // LOCKOUT GUARD: never delete the last active admin.
   const target = await env.DB.prepare('SELECT role, is_active FROM users WHERE id = ?').bind(targetId).first();
   if (!target) return json({ error: 'Member not found' }, 404);
@@ -368,7 +368,7 @@ async function handleMemberDelete(env: Env, request: Request, user: Record<strin
       .bind(targetId)
       .first();
     if (Number((admins as any)?.c ?? 0) === 0) {
-      return json({ error: 'Last admin ko delete nahi kar sakte' }, 400);
+      return json({ error: 'You cannot delete the last admin' }, 400);
     }
   }
   // DELETE PROTECTION: a telecaller with assigned leads cannot be deleted unless
@@ -382,7 +382,7 @@ async function handleMemberDelete(env: Env, request: Request, user: Record<strin
   const force = body.force === true;
   if (count > 0 && !force) {
     return json(
-      { error: `Is telecaller ke paas ${count} assigned lead hain. Pehle saare leads transfer/unassign karein ya force delete karein.`, assignedLeads: count },
+      { error: `This telecaller has ${count} assigned lead(s). Transfer/unassign the leads first, or force delete.`, assignedLeads: count },
       409
     );
   }
@@ -407,7 +407,7 @@ async function handleChangePin(env: Env, request: Request, user: Record<string, 
   const row = await env.DB.prepare('SELECT pin_hash FROM users WHERE id = ?').bind(Number(user!.id)).first();
   const iters = pbkdf2Iters(env);
   const ok = await verifyPin(String(body.currentPin || '').trim(), String((row as any)?.pin_hash || ''), iters);
-  if (!ok) return json({ error: 'Current PIN galat hai.' }, 400);
+  if (!ok) return json({ error: 'Current PIN is wrong.' }, 400);
   const newPin = String(body.newPin || '').trim();
   if (newPin.length < 4 || newPin.length > 8) return json({ error: 'PIN 4-8 digits' }, 400);
   const pinHash = await hashPin(newPin, iters);
@@ -424,7 +424,7 @@ async function handleFactoryReset(env: Env, request: Request, user: Record<strin
   // Brute-force guard: reuse login rate limiter (5-min window, max 10 attempts).
   const ip = request.headers.get('CF-Connecting-IP') || 'local';
   if (await recordLoginFailure(env, ip)) {
-    return json({ error: 'Bahut saare attempts — thodi der baad try karein.' }, 429);
+    return json({ error: 'Too many attempts — please try again in a while.' }, 429);
   }
 
   // Re-verify the admin's own login PIN before any destructive wipe.
@@ -432,7 +432,7 @@ async function handleFactoryReset(env: Env, request: Request, user: Record<strin
   const iters = pbkdf2Iters(env);
   const ok = await verifyPin(String(body.pin || '').trim(), String((row as any)?.pin_hash || ''), iters);
   // 403 (not 401) so a wrong PIN never logs the admin out of the app.
-  if (!ok) return json({ error: 'PIN galat hai — factory reset blocked.' }, 403);
+  if (!ok) return json({ error: 'Wrong PIN — factory reset blocked.' }, 403);
 
   // Tombstone every row about to be deleted so other devices prune locally.
   const synced = ['crm_customers', 'crm_leads', 'crm_orders', 'crm_spacel_followups', 'crm_timeline_logs', 'crm_notifications', 'crm_call_logs'];
@@ -643,7 +643,7 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
     const member = await env.DB.prepare("SELECT id, full_name FROM users WHERE id = ? AND is_active = 1 AND role = 'telecaller'")
       .bind(Number(at) || at)
       .first();
-    if (!member) return json({ error: 'Invalid assignee — telecaller exists/active nahi hai' }, 400);
+    if (!member) return json({ error: 'Invalid assignee — telecaller does not exist or is not active' }, 400);
     data.assigned_to = String((member as any).id);
     if (!data.assigned_agent) data.assigned_agent = String((member as any).full_name || 'Telecaller');
   }
@@ -980,7 +980,7 @@ async function handleSettingsPatch(env: Env, request: Request, user: Record<stri
   if (key === 'commission_rate') {
     const rate = Number(value);
     if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
-      return json({ error: 'Commission rate 0-100% hona chahiye' }, 400);
+      return json({ error: 'Commission rate must be between 0-100%' }, 400);
     }
   }
   await env.DB.prepare(
@@ -1188,7 +1188,7 @@ async function handleLeadsAssign(env: Env, request: Request, user: Record<string
   // Notify the assignee (in-app; surfaced by the NotificationBell).
   if (changed > 0 && name) {
     const title = assignToId ? 'New leads assigned' : 'Leads unassigned';
-    const message = `${changed} lead${changed === 1 ? '' : 's'} aapko assign hui hain.`;
+    const message = `${changed} lead${changed === 1 ? '' : 's'} assigned to you.`;
     await env.DB.prepare(
       "INSERT INTO crm_notifications (title, message, type, is_read, link_to, created_at) VALUES (?, ?, 'lead_assignment', 0, '/leads', ?)"
     )

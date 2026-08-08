@@ -45,15 +45,15 @@ function SettingsContent() {
   const handleSaveCommission = async () => {
     const rate = Number(commissionRate);
     if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
-      toast.error('Commission rate 0-100% hona chahiye');
+      toast.error('Commission rate must be between 0-100%');
       return;
     }
     setCommissionSaving(true);
     try {
       await api.setSetting('commission_rate', String(rate));
-      toast.success('Commission rate save ho gaya: ' + rate + '%');
+      toast.success('Commission rate saved: ' + rate + '%');
     } catch (e: any) {
-      toast.error(e?.message || 'Commission rate save nahi hua');
+      toast.error(e?.message || 'Could not save commission rate');
     } finally {
       setCommissionSaving(false);
     }
@@ -62,12 +62,12 @@ function SettingsContent() {
   const handleChangePin = async () => {
     setPinMsg(''); setPinOk(false);
     if (!/^\d{6,8}$/.test(newPin.trim())) {
-      setPinMsg('Naya PIN 6-8 digits ka hona chahiye.');
+      setPinMsg('New PIN must be 6-8 digits.');
       return;
     }
     const res = await changePin(curPin, newPin);
-    if (!res.ok) { setPinMsg(res.error || 'PIN change fail hua'); return; }
-    setPinMsg('PIN successfully change ho gaya!'); setPinOk(true);
+    if (!res.ok) { setPinMsg(res.error || 'PIN change failed'); return; }
+    setPinMsg('PIN changed successfully!'); setPinOk(true);
     setCurPin(''); setNewPin('');
   };
   const handleBackup = async () => {
@@ -232,7 +232,7 @@ function SettingsContent() {
       return;
     }
     const pin = resetPin.trim();
-    if (!pin) { toast.error('Admin PIN daalein'); return; }
+    if (!pin) { toast.error('Enter admin PIN'); return; }
     setResetBusy(true);
     try {
       const res = await api.factoryReset(pin);
@@ -241,7 +241,7 @@ function SettingsContent() {
       toast.success(`Factory reset complete — ${res?.deleted ?? 0} records wiped from cloud.`);
       setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
-      toast.error(e?.message || 'Reset failed — PIN galat hai');
+      toast.error(e?.message || 'Reset failed — wrong PIN');
       setResetBusy(false);
     }
   };

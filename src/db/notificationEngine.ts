@@ -75,8 +75,8 @@ export async function runNotificationChecks(): Promise<number> {
       await db.notifications.add({
         title,
         message: lastLog
-          ? `${m.full_name} ne 48+ ghante se koi call log nahi kiya.`
-          : `${m.full_name} ne abhi tak koi call log nahi kiya.`,
+          ? `${m.full_name} has not logged any call in 48+ hours.`
+          : `${m.full_name} has not logged any call yet.`,
         type: 'alert',
         isRead: false,
         createdAt: new Date().toISOString(),

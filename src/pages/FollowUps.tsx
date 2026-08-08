@@ -262,7 +262,7 @@ export function FollowUps() {
             SpaceL Leads Pipeline
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            Track, nurture & convert customers who said "baad mein lunga"
+            Track, nurture & convert customers who said "I'll do it later"
           </p>
         </div>
         <div className="flex items-center gap-5">

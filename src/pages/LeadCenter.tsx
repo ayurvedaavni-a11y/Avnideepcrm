@@ -349,7 +349,7 @@ export function LeadCenter() {
                 try {
                   if (!val) {
                     await removeAssignment(lead.id);
-                    toast.success('Assignment removed - lead wapas pool mein');
+                    toast.success('Assignment removed - lead back to the pool');
                   } else {
                     const tc = telecallers.find(t => t.id === val);
                     if (tc) {

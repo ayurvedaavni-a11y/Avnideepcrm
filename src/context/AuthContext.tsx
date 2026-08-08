@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (mobile: string, pin: string, expectedRole?: TeamRole) => {
     const res = await loginWithMobilePin(mobile, pin);
     if (!res.ok || !res.profile) {
-      return { ok: false, error: res.error || 'Login fail hua. Admin se contact karein.' };
+      return { ok: false, error: res.error || 'Login failed. Please contact the admin.' };
     }
     // Role verification — enforce the login entry point chosen on the login screen
     if (expectedRole && res.profile.role !== expectedRole) {
@@ -77,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const expectedLabel = expectedRole === 'admin' ? 'Admin' : 'Telecaller';
       return {
         ok: false,
-        error: `Ye account ${actualLabel} account hai. ${expectedLabel} Login se login nahi ho sakta — ${actualLabel} Login use karein.`,
+        error: `This is a ${actualLabel} account. You cannot log in via ${expectedLabel} Login — please use ${actualLabel} Login.`,
       };
     }
     setProfile(res.profile);

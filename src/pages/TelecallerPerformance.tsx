@@ -78,7 +78,7 @@ export function TelecallerPerformance() {
       setRate(r.rate || 0);
       setError('');
     } catch (e: any) {
-      setError(e?.message || 'Performance load nahi hua');
+      setError(e?.message || 'Could not load performance');
     } finally {
       setLoading(false);
     }
@@ -122,7 +122,7 @@ export function TelecallerPerformance() {
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl p-4">
-          {error} {!isAdmin && '— Admin se commission rate set karwana hoga.'}
+          {error} {!isAdmin && '— Ask the admin to set the commission rate.'}
         </div>
       )}
 
@@ -175,7 +175,7 @@ export function TelecallerPerformance() {
               {loading && <tr><td colSpan={14} className="px-4 py-8 text-center text-slate-400">Loading…</td></tr>}
               {!loading && rows.length === 0 && (
                 <tr><td colSpan={14} className="px-4 py-8 text-center text-slate-400">
-                  {isAdmin ? 'Koi telecaller account nahi bana hai.' : 'Abhi koi data nahi.'}
+                  {isAdmin ? 'No telecaller account has been created yet.' : 'No data yet.'}
                 </td></tr>
               )}
               {rows.map((m) => (

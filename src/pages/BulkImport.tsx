@@ -87,24 +87,24 @@ export function BulkImport() {
       if (ext === 'csv' || ext === 'txt') {
         const text = new TextDecoder('utf-8').decode(buffer);
         const parsed = parseCsv(text);
-        if (!parsed.headers.length) throw new Error('CSV me koi header/column nahi mila — file khaali hai ya galat format hai.');
+        if (!parsed.headers.length) throw new Error('No header/column found in the CSV — the file is empty or in the wrong format.');
         rows = parsed.rows;
       } else if (ext === 'xlsx') {
         rows = await parseXlsx(buffer);
       } else if (ext === 'xls') {
-        throw new Error('.xls (old format) supported nahi hai — file ko .xlsx me save karke try karein.');
+        throw new Error('.xls (old format) is not supported — save the file as .xlsx and try again.');
       } else {
-        throw new Error('Unsupported file type: .' + ext + ' (sirf .xlsx ya .csv).');
+        throw new Error('Unsupported file type: .' + ext + ' (only .xlsx or .csv).');
       }
-      if (!rows.length) throw new Error('File me koi data row nahi mila.');
+      if (!rows.length) throw new Error('No data rows found in the file.');
       if (!rows.some((r) => normalizeMobile(getVal(r, 'mobile')))) {
-        throw new Error('Mobile column nahi mila ya koi valid 10-digit mobile nahi hai. Columns check karein (Name, Mobile, Product...).');
+        throw new Error('Mobile column not found, or no valid 10-digit mobile numbers. Check the columns (Name, Mobile, Product...).');
       }
       setFileData(rows);
       setPreview(rows.slice(0, 10));
       toast.success(`Loaded ${rows.length} rows`);
     } catch (e: any) {
-      toast.error('File parse nahi hui: ' + (e?.message || 'Unknown error'));
+      toast.error('File could not be parsed: ' + (e?.message || 'Unknown error'));
     } finally {
       setImporting(false);
     }
@@ -136,8 +136,8 @@ export function BulkImport() {
   };
 
   const rollback = async () => {
-    if (!report || !report.createdIds.length) { toast('Rollback ke liye koi nayi row nahi thi.', { icon: '↩️' }); return; }
-    if (!window.confirm(`${report.createdIds.length} nayi imported row(s) delete karni hain? Pehle se maujood data chhu nahi jayega.`)) return;
+    if (!report || !report.createdIds.length) { toast('There were no new rows to roll back.', { icon: '↩️' }); return; }
+    if (!window.confirm(`Delete the ${report.createdIds.length} newly imported row(s)? Existing data will not be touched.`)) return;
     setImporting(true);
     try {
       const customers = report.createdIds.filter((c) => c.kind === 'customer').map((c) => c.id);
@@ -168,11 +168,11 @@ export function BulkImport() {
           await db.customers.bulkDelete(customers);
         }
       });
-      toast.success('Rollback complete — sirf is import ki nayi rows delete hui.');
+      toast.success('Rollback complete — only this import\'s new rows were deleted.');
       setReport(null);
       resetImport();
     } catch (e: any) {
-      toast.error('Rollback fail hua: ' + (e?.message || e));
+      toast.error('Rollback failed: ' + (e?.message || e));
     } finally {
       setImporting(false);
     }
@@ -413,7 +413,7 @@ export function BulkImport() {
     URL.revokeObjectURL(url);
     toast.success('Sample downloaded');
     } catch (e: any) {
-      toast.error('Sample download fail hua: ' + (e?.message || 'Unknown error'));
+      toast.error('Sample download failed: ' + (e?.message || 'Unknown error'));
     }
   };
 
@@ -458,7 +458,7 @@ export function BulkImport() {
       >
         <input ref={fileInputRef} type="file" accept=".xlsx,.csv,.txt" onChange={handleFileUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
         <UploadCloud className={`mx-auto mb-3 ${dragOver ? 'text-blue-600' : 'text-slate-400'}`} size={36} />
-        <p className="text-sm font-bold text-slate-700">{dragOver ? 'Drop file yahan chhodein…' : 'Click karein ya file yahan drag-drop karein'}</p>
+        <p className="text-sm font-bold text-slate-700">{dragOver ? 'Drop file yahan chhodein…' : 'Click or drag & drop a file here'}</p>
         <p className="text-xs text-slate-500 mt-1">.xlsx • .csv • scientific notation supported • 10,000+ rows OK</p>
       </div>
 
