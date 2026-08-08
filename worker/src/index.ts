@@ -505,29 +505,45 @@ async function maybeLinkLeadToOrder(env: Env, table: string, cloudRowId: number)
   if (table !== 'crm_orders' || !cloudRowId || cloudRowId <= 0) return;
   try {
     const order = await env.DB.prepare(
-      'SELECT lead_id, booked_by_name, order_id, product FROM crm_orders WHERE id = ?'
-    ).bind(cloudRowId).first<{ lead_id: number; booked_by_name: string | null; order_id: string; product: string | null }>();
+      'SELECT lead_id, booked_by_name, order_id, product, status FROM crm_orders WHERE id = ?'
+    ).bind(cloudRowId).first<{ lead_id: number; booked_by_name: string | null; order_id: string; product: string | null; status: string }>();
     const leadId = Number(order?.lead_id || 0);
     if (!order || !leadId || leadId <= 0) return;
+    // ORDER -> LEAD STATUS MIRROR (single authoritative lifecycle). Whenever
+    // the order reaches Order Booked or any fulfilment/terminal status, the
+    // linked lead follows it SERVER-side. updated_at is server-stamped so the
+    // 15s delta sync + 2s /api/orders/status poll carry it to every device —
+    // a stale 'New Lead' can never linger on a telecaller's Lead Center. This
+    // mirrors exactly what the client writer (syncOrderToCentralStatus) does.
+    const ORDER_TO_LEAD_STATUSES = [
+      'Order Booked', 'Packing', 'Packed', 'Ready To Ship', 'Shipped',
+      'In Transit', 'Out For Delivery', 'Delivered', 'Undelivered', 'RTO', 'Cancelled',
+    ];
+    const targetStatus = ORDER_TO_LEAD_STATUSES.includes(String(order.status)) ? String(order.status) : null;
     const lead = await env.DB.prepare(
       'SELECT id, status, customer_id, customer_name FROM crm_leads WHERE id = ?'
     ).bind(leadId).first<{ id: number; status: string; customer_id: number; customer_name: string }>();
-    if (!lead || lead.status === 'Order Booked') return;
+    if (!lead || !targetStatus || lead.status === targetStatus) return;
     const now = new Date().toISOString();
-    await env.DB.batch([
-      env.DB.prepare(
-        "UPDATE crm_leads SET status = 'Order Booked', updated_at = ? WHERE id = ? AND status != 'Order Booked'"
-      ).bind(now, leadId),
+    const stmts = [
+      env.DB.prepare('UPDATE crm_leads SET status = ?, updated_at = ? WHERE id = ?').bind(targetStatus, now, leadId),
       env.DB.prepare(
         `INSERT INTO crm_timeline_logs (customer_id, entity_type, entity_id, action, status_from, status_to, notes, agent_name, created_at)
-         VALUES (?, 'Lead', ?, 'Order Booked', ?, 'Order Booked', ?, ?, ?)`
+         VALUES (?, 'Lead', ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
-        lead.customer_id ?? 0, leadId, lead.status,
-        `Order ${order.order_id} booked for ${order.product || 'product'} (server auto-link).`,
+        lead.customer_id ?? 0, leadId, targetStatus, lead.status, targetStatus,
+        `Order ${order.order_id} ${targetStatus === 'Order Booked' ? 'booked for ' + (order.product || 'product') : 'status -> ' + targetStatus} (server auto-link).`,
         order.booked_by_name || 'Telecaller', now,
       ),
-    ]);
-    console.log('[lead-link] order', cloudRowId, '→ lead', leadId, 'converted');
+    ];
+    if (Number(lead.customer_id || 0) > 0) {
+      stmts.push(
+        env.DB.prepare('UPDATE crm_customers SET current_status = ?, updated_at = ? WHERE id = ?')
+          .bind(targetStatus, now, lead.customer_id)
+      );
+    }
+    await env.DB.batch(stmts);
+    console.log('[lead-link] order', cloudRowId, '→ lead', leadId, lead.status, '→', targetStatus);
   } catch (e: any) {
     // Never fail the order write because of the link step.
     console.error('[lead-link] skipped for order', cloudRowId, '—', String(e?.message || e).slice(0, 160));
@@ -1032,6 +1048,7 @@ async function handlePerformance(env: Env, _request: Request, user: Record<strin
       `SELECT
          COUNT(*) AS total_orders,
          COALESCE(SUM(CASE WHEN status = 'Delivered' THEN cod_amount ELSE 0 END), 0) AS delivered_amount,
+         COALESCE(SUM(CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END), 0) AS delivered_orders,
          COALESCE(SUM(CASE WHEN status IN ('Order Booked','Packing','Packed','Ready To Ship','Shipped','In Transit','Out For Delivery') THEN cod_amount ELSE 0 END), 0) AS pending_amount,
          COALESCE(SUM(CASE WHEN status = 'RTO' THEN cod_amount ELSE 0 END), 0) AS rto_amount,
          COALESCE(SUM(CASE WHEN status = 'Cancelled' THEN cod_amount ELSE 0 END), 0) AS cancelled_amount,
@@ -1051,11 +1068,17 @@ async function handlePerformance(env: Env, _request: Request, user: Record<strin
     const callsRow = await env.DB.prepare(
       "SELECT COUNT(*) AS calls, COALESCE(SUM(duration_sec), 0) AS total_sec FROM crm_call_logs WHERE telecaller_id = ?"
     ).bind(uid).first();
+    // ACTIVE assigned leads only (terminal/order statuses leave the pipeline —
+    // matches the telecaller's Lead Center active view, so counts always agree).
     const leadRow = await env.DB.prepare(
-      "SELECT COUNT(*) AS assigned FROM crm_leads WHERE assigned_to = ?"
+      `SELECT COUNT(*) AS assigned FROM crm_leads WHERE assigned_to = ?
+         AND status IN ('New Lead','Assigned','Calling','Ring','Busy','Interested','Followup','Callback','Callback Requested','Not Reachable')`
     ).bind(uid).first();
+    // Converted = ACTUAL orders booked (persistent — never drops when the order
+    // reaches Delivered/RTO/Cancelled, unlike the old lead-status='Order Booked'
+    // count which fell to 0 the moment the lead status advanced).
     const convertedRow = await env.DB.prepare(
-      "SELECT COUNT(*) AS converted FROM crm_leads WHERE assigned_to = ? AND status = 'Order Booked'"
+      "SELECT COUNT(*) AS converted FROM crm_orders WHERE booked_by = ?"
     ).bind(uid).first();
     const assigned = Number((leadRow as any)?.assigned ?? 0);
     const converted = Number((convertedRow as any)?.converted ?? 0);
@@ -1069,6 +1092,7 @@ async function handlePerformance(env: Env, _request: Request, user: Record<strin
       converted,
       conversionPct: assigned ? Math.round((converted / assigned) * 1000) / 10 : 0,
       totalOrders: Number(a.total_orders ?? 0),
+      deliveredOrders: Number(a.delivered_orders ?? 0),
       deliveredAmount,
       pendingAmount: Number(a.pending_amount ?? 0),
       rtoAmount: Number(a.rto_amount ?? 0),
@@ -1244,7 +1268,7 @@ async function handleOrderStatus(env: Env, _request: Request, user: Record<strin
     : (since
         ? "WHERE (booked_by = ? OR lead_id IN (SELECT id FROM crm_leads WHERE assigned_to = ?)) AND updated_at > ?"
         : "WHERE (booked_by = ? OR lead_id IN (SELECT id FROM crm_leads WHERE assigned_to = ?))");
-  const sql = `SELECT id, order_id, status, updated_at, delivered_at FROM crm_orders ${where} ORDER BY updated_at ASC LIMIT 500`;
+  const sql = `SELECT id, order_id, status, updated_at, delivered_at, lead_id, customer_id FROM crm_orders ${where} ORDER BY updated_at ASC LIMIT 500`;
   const bind = isAdmin
     ? (since ? [since] : [])
     : (since ? [user!.id, user!.id, since] : [user!.id, user!.id]);
@@ -1255,6 +1279,8 @@ async function handleOrderStatus(env: Env, _request: Request, user: Record<strin
     status: String(r.status || ''),
     updatedAt: String(r.updated_at || ''),
     deliveredAt: r.delivered_at ? String(r.delivered_at) : undefined,
+    leadId: Number(r.lead_id || 0),
+    customerId: Number(r.customer_id || 0),
   }));
   return json({ rows, serverTime: new Date().toISOString() });
 }

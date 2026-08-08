@@ -26,6 +26,7 @@ interface PerfMember {
   converted: number;
   conversionPct: number;
   totalOrders: number;
+  deliveredOrders: number;
   deliveredAmount: number;
   pendingAmount: number;
   rtoAmount: number;
@@ -94,6 +95,7 @@ export function TelecallerPerformance() {
     assigned: acc.assigned + m.assigned,
     calls: acc.calls + m.calls,
     converted: acc.converted + m.converted,
+    deliveredOrders: acc.deliveredOrders + m.deliveredOrders,
     delivered: acc.delivered + m.deliveredAmount,
     pending: acc.pending + m.pendingAmount,
     rto: acc.rto + m.rtoAmount,
@@ -102,7 +104,7 @@ export function TelecallerPerformance() {
     weekly: acc.weekly + m.weeklyAmount,
     monthly: acc.monthly + m.monthlyAmount,
     commission: acc.commission + m.commission,
-  }), { assigned: 0, calls: 0, converted: 0, delivered: 0, pending: 0, rto: 0, cancelled: 0, daily: 0, weekly: 0, monthly: 0, commission: 0 });
+  }), { assigned: 0, calls: 0, converted: 0, deliveredOrders: 0, delivered: 0, pending: 0, rto: 0, cancelled: 0, daily: 0, weekly: 0, monthly: 0, commission: 0 });
 
   return (
     <div className="space-y-5 animate-in fade-in duration-300">
@@ -135,7 +137,8 @@ export function TelecallerPerformance() {
         <StatCard label="Pending Amount" value={inr(team.pending)} icon={Timer} iconClass="bg-orange-50 text-orange-600" sub="Pipeline orders" />
         <StatCard label="Commission" value={inr(team.commission)} icon={Wallet} iconClass="bg-purple-50 text-purple-600" sub={`@ ${rate}% of delivered`} />
       </div>
-      <div className="grid grid-cols-3 sm:grid-cols-5 xl:grid-cols-9 gap-2.5">
+      <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-7 gap-2.5">
+        <StatCard label="Delivered Orders" value={String(team.deliveredOrders)} icon={CheckCircle} iconClass="bg-emerald-50 text-emerald-600" />
         <StatCard label="RTO Amount" value={inr(team.rto)} icon={Package} iconClass="bg-rose-50 text-rose-600" />
         <StatCard label="Cancelled" value={inr(team.cancelled)} icon={XCircle} iconClass="bg-slate-100 text-slate-600" />
         <StatCard label="Assigned Leads" value={String(team.assigned)} icon={Users} iconClass="bg-blue-50 text-blue-600" />
@@ -160,6 +163,7 @@ export function TelecallerPerformance() {
                 <th className="px-4 py-3">Calls</th>
                 <th className="px-4 py-3">Talk Time</th>
                 <th className="px-4 py-3">Converted</th>
+                <th className="px-4 py-3">Delivered #</th>
                 <th className="px-4 py-3">Conv %</th>
                 <th className="px-4 py-3">Delivered ₹</th>
                 <th className="px-4 py-3">Pending ₹</th>
@@ -195,6 +199,7 @@ export function TelecallerPerformance() {
                   <td className="px-4 py-3 font-semibold text-slate-700">{m.calls}</td>
                   <td className="px-4 py-3 text-slate-600">{fmtDuration(m.totalCallSeconds)}</td>
                   <td className="px-4 py-3 font-bold text-emerald-600">{m.converted}</td>
+                  <td className="px-4 py-3 font-semibold text-emerald-600">{m.deliveredOrders}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-700">
                       <TrendingUp size={11} /> {m.conversionPct}%

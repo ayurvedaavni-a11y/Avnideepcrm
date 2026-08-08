@@ -159,7 +159,7 @@ export const api = {
   orderStatus: (since?: string) => {
     let q = '/api/orders/status';
     if (since) q += `?since=${encodeURIComponent(since)}`;
-    return request<{ rows: Array<{ id: number; orderId: string; status: string; updatedAt: string; deliveredAt?: string }>; serverTime: string }>(q);
+    return request<{ rows: Array<{ id: number; orderId: string; status: string; updatedAt: string; deliveredAt?: string; leadId?: number; customerId?: number }>; serverTime: string }>(q);
   },
 
   // ---- intake ----

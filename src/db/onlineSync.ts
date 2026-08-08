@@ -443,11 +443,13 @@ async function pollOrderStatus(userId: string) {
       try {
         for (const r of res.rows) {
           const localId = await getLocalIdByCloud('orders', Number(r.id));
-          if (localId == null) continue;
-          const orderPatch: any = { status: r.status, updatedAt: r.updatedAt };
-          if (r.deliveredAt) orderPatch.deliveredAt = r.deliveredAt;
-          await db.orders.update(localId, orderPatch);
-          const order = await db.orders.get(localId);
+          let order: any = null;
+          if (localId != null) {
+            const orderPatch: any = { status: r.status, updatedAt: r.updatedAt };
+            if (r.deliveredAt) orderPatch.deliveredAt = r.deliveredAt;
+            await db.orders.update(localId, orderPatch);
+            order = await db.orders.get(localId);
+          }
           // Mirror the linked lead + customer central status exactly like
           // syncOrderToCentralStatus() does on the writer side, so Lead Center
           // and Customer Timeline agree within seconds too.
@@ -456,6 +458,19 @@ async function pollOrderStatus(userId: string) {
           }
           if (order?.customerId) {
             await db.customers.update(order.customerId, { currentStatus: r.status as any, updatedAt: r.updatedAt });
+          }
+          // NEW: mirror via CLOUD ids as well. Fixes the stale-lead case where
+          // the local order row is missing (booked on another device / never
+          // pulled): a Delivered/RTO/Cancelled order still updates the linked
+          // lead + customer locally within ~2s, so the telecaller's Lead Center
+          // can never keep showing that customer as an active 'New Lead'.
+          if (r.leadId && !order?.leadId) {
+            const lid = await getLocalIdByCloud('leads', Number(r.leadId));
+            if (lid != null) await db.leads.update(lid, { status: r.status as any, updatedAt: r.updatedAt });
+          }
+          if (r.customerId && !order?.customerId) {
+            const cid = await getLocalIdByCloud('customers', Number(r.customerId));
+            if (cid != null) await db.customers.update(cid, { currentStatus: r.status as any, updatedAt: r.updatedAt });
           }
         }
       } finally {

@@ -15,7 +15,7 @@ import RotateCcw from 'lucide-react/dist/esm/icons/rotate-ccw'
 import PhoneCall from 'lucide-react/dist/esm/icons/phone-call'
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days'
 import TrendingUp from 'lucide-react/dist/esm/icons/trending-up'
-import { isPipelineActive, isRevenueEligible, isFakeStatus, isRTOStatus } from '../db/lifecycle';
+import { isPipelineActive, isRevenueEligible, isFakeStatus, isRTOStatus, isLeadShown } from '../db/lifecycle';
 import { safeMoney, safeFilter } from '../lib/safe';
 import { useDateFilter } from '../context/DateFilterContext';
 import { useAuth } from '../context/AuthContext';
@@ -97,7 +97,7 @@ export function Dashboard() {
       }
     }
     return {
-      assigned: myLeads.length,
+      assigned: myLeads.filter(l => isLeadShown(l.status)).length,
       todayCalls,
       confirmed,
       cancelled,

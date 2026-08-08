@@ -19,7 +19,7 @@ import { Customer360Profile } from '../components/Customer360Profile';
 import { BookOrderModal } from '../components/BookOrderModal';
 import { useDateFilter } from '../context/DateFilterContext';
 import { useAuth } from '../context/AuthContext';
-import { TELECALLER_STATUSES, ADMIN_STATUSES, statusLabel } from '../db/lifecycle';
+import { TELECALLER_STATUSES, ADMIN_STATUSES, statusLabel, isLeadShown } from '../db/lifecycle';
 import { assignLead, bulkAssignLeads, removeAssignment } from '../db/assignmentEngine';
 import { listTeamMembers } from '../db/auth';
 import type { TeamProfile } from '../db/auth';
@@ -82,14 +82,21 @@ export function LeadCenter() {
     }
   }, [isAdmin]);
 
-  // TELECALLER ISOLATION: non-admin users see ONLY their own assigned leads
+  // TELECALLER ISOLATION: non-admin users see ONLY their own ACTIVE pipeline
+  // leads. isLeadShown=false statuses (Order Booked, Delivered, RTO,
+  // Cancelled, Not Interested, Fake Lead, ...) automatically leave Lead Center
+  // — their history stays in My Orders + Performance. Counts stay consistent
+  // because every tab/count derives from this same dataset.
   const visibleLeads = useMemo(() => {
     if (isAdmin || !authProfile?.id) return leads;
     // Type-safe: assignedTo comes from cloud as string (e.g. "26") while
     // authProfile.id is a number (26) - strict === used to hide leads.
     const myId = String(authProfile.id);
     const myName = authProfile.full_name || '';
-    return leads.filter(l => String(l.assignedTo || '') === myId || String(l.assignedAgent || '') === myName);
+    return leads.filter(l =>
+      (String(l.assignedTo || '') === myId || String(l.assignedAgent || '') === myName) &&
+      isLeadShown(l.status)
+    );
   }, [leads, isAdmin, authProfile]);
 
   // Filters & Pagination state
