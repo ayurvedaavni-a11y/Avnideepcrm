@@ -146,11 +146,13 @@ export const api = {
     }),
   deleteRow: (table: string, id: number) =>
     request<{ ok: boolean }>('/api/sync/delete', { method: 'POST', body: { table, id } }),
+  deleteBulk: (table: string, ids: number[]) =>
+    request<{ ok: boolean; deleted: number }>('/api/sync/delete-bulk', { method: 'POST', body: { table, ids } }),
   pullAll: (tables: string[], opts?: { since?: string; deletedSince?: string }) => {
     let q = `/api/sync/pull?tables=${encodeURIComponent(tables.join(','))}`;
     if (opts?.since) q += `&since=${encodeURIComponent(opts.since)}`;
     if (opts?.deletedSince) q += `&deletedSince=${encodeURIComponent(opts.deletedSince)}`;
-    return request<{ rows: Record<string, any[]>; deleted?: Record<string, any[]>; pulledAt?: string }>(q);
+    return request<{ rows: Record<string, any[]>; deleted?: Record<string, any[]>; pulledAt?: string; epoch?: number }>(q);
   },
   countTable: (table: string) =>
     request<{ count: number }>(`/api/sync/count?table=${encodeURIComponent(table)}`),

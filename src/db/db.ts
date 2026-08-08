@@ -308,6 +308,8 @@ export interface SyncQueueEntry {
   attempts: number;
   lastError?: string;
   lastAttemptAt?: string;
+  /** 1 = dead-lettered (permanent 4xx failure or too many retries) — skipped forever. */
+  dead?: number;
   createdAt: string;
 }
 

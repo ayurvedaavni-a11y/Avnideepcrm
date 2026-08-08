@@ -59,6 +59,18 @@ export function CallLogModal({ lead, customer, onClose }: Props) {
         reminderReason: reminderReason || undefined,
         durationSec: Number.isFinite(mins) && mins > 0 ? Math.round(mins * 60) : 0,
       });
+      // AUDIT: every call lands in the customer timeline with the actor,
+      // outcome status and duration (admin complete-action history).
+      await db.timelineLogs.add({
+        customerId: lead.customerId,
+        entityType: 'Lead',
+        entityId: lead.id,
+        action: 'Call Logged',
+        statusTo: status,
+        notes: `Call by ${profile?.full_name || 'Telecaller'} — ${status || 'No status'}${mins > 0 ? ` (${mins} min)` : ''}${notes ? ` — ${notes}` : ''}`,
+        agentName: profile?.full_name || 'Telecaller',
+        createdAt: new Date().toISOString(),
+      });
       toast.success('Call logged successfully');
       onClose();
     } catch (e: any) {

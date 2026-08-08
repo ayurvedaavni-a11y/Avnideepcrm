@@ -184,6 +184,7 @@ async function processQueue() {
     for (const entry of entries) {
       // Exponential backoff per entry — a failing row retries on its own
       // schedule and can NEVER block the rows behind it in the queue.
+      if (entry.dead) continue; // dead-lettered permanent failure — skipped forever
       const attempts = entry.attempts || 0;
       if (entry.lastAttemptAt) {
         const backoffMs = Math.min(30_000, 2_000 * Math.pow(2, Math.min(attempts, 5)));
@@ -194,9 +195,17 @@ async function processQueue() {
         if (entry.id != null) await db.syncQueue.delete(entry.id);
       } catch (err: any) {
         const next = attempts + 1;
+        // PERMANENT failures (4xx = the server rejected the row: invalid lead
+        // status, forbidden table, bad FK, unknown table) can never succeed by
+        // retrying — dead-letter them so they stop inflating "items sync
+        // pending" forever. Transient errors (network / 5xx) retry with
+        // backoff and only die after 6 attempts.
+        const permanent = (err as any)?.status >= 400 && (err as any)?.status < 500;
+        const dead = permanent || next >= 6;
         if (entry.id != null) {
           await db.syncQueue.update(entry.id, {
             attempts: next,
+            dead: dead ? 1 : 0,
             lastAttemptAt: new Date().toISOString(),
             lastError: String(err?.message || err).slice(0, 300),
           });
@@ -206,11 +215,37 @@ async function processQueue() {
         // to stall the WHOLE queue (stuck assignments + unsynced imports).
       }
     }
-    setSyncStatus({ pending: await db.syncQueue.count() });
+    setSyncStatus({ pending: await db.syncQueue.filter((q) => !q.dead).count() });
   } finally {
     processing = false;
   }
 }
+// ---------- dead-letter helpers + local reset state ----------
+
+/** Permanently delete dead-lettered (4xx / too-many-retries) sync entries. */
+export async function clearFailedSyncEntries(): Promise<number> {
+  const dead = await db.syncQueue.filter((q) => !!q.dead).toArray();
+  const ids = dead.map((d) => d.id).filter((x): x is number => x != null);
+  if (ids.length) await db.syncQueue.bulkDelete(ids);
+  setSyncStatus({ pending: await db.syncQueue.filter((q) => !q.dead).count() });
+  return dead.length;
+}
+
+/** Count dead-lettered (permanently failed) sync entries. */
+export async function countFailedSyncEntries(): Promise<number> {
+  try { return await db.syncQueue.filter((q) => !!q.dead).count(); } catch { return 0; }
+}
+
+/** After a factory reset: wipe local sync cursors + epoch so the next pull is
+ *  a fresh full sync of the (now empty) cloud — no stale delta pulls. */
+export function resetLocalSyncState(): void {
+  const uid = activeUserId();
+  if (!uid) return;
+  localStorage.removeItem(CURSOR_PREFIX + uid);
+  localStorage.removeItem(STATUS_CURSOR_PREFIX + uid);
+  localStorage.removeItem(EPOCH_PREFIX + uid);
+}
+
 // ---------- inbound: apply a cloud row into the local cache ----------
 type DeferredRow = [string, Record<string, any>];
 
@@ -299,6 +334,23 @@ async function pullFromCloud(userId: string, forceFull = false): Promise<{ ok: b
           deletedSince: cursors!.deletedAt || undefined,
         })
       : await api.pullAll(cloudNames);
+    // FACTORY-RESET EPOCH INVALIDATION: the server bumps sync_epoch on every
+    // reset. A mismatch means the whole data set was wiped — purge the local
+    // cache + sync queue + id maps + cursors so a stale pending push can never
+    // resurrect old data, then immediately re-pull everything fresh.
+    const serverEpoch = Number(res.epoch ?? 0);
+    const epochKey = EPOCH_PREFIX + userId;
+    const storedEpoch = Number(localStorage.getItem(epochKey) || '0');
+    if (serverEpoch > 0 && storedEpoch > 0 && serverEpoch !== storedEpoch) {
+      for (const k of ORDERED_KEYS) await (db as any)[SYNC_TABLES[k].dexie].clear();
+      await db.syncQueue.clear();
+      await db.syncMap.clear();
+      localStorage.removeItem(CURSOR_PREFIX + userId);
+      localStorage.removeItem(STATUS_CURSOR_PREFIX + userId);
+      localStorage.removeItem(epochKey);
+      return pullFromCloud(userId, true);
+    }
+    if (serverEpoch > 0) localStorage.setItem(epochKey, String(serverEpoch));
     pulledAt = res.pulledAt || new Date().toISOString();
     for (const key of ORDERED_KEYS) {
       const cfg = SYNC_TABLES[key];
@@ -430,6 +482,7 @@ export async function processIntakeLeads(): Promise<{ success: boolean; count: n
 
 // ---------- fast order-status poll (admin change → telecaller in ~2s) ----------
 const STATUS_CURSOR_PREFIX = 'crm_status_cursor_';
+const EPOCH_PREFIX = 'crm_sync_epoch_';
 
 async function pollOrderStatus(userId: string) {
   if (!navigator.onLine) return;

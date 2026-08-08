@@ -436,12 +436,12 @@ async function handleFactoryReset(env: Env, request: Request, user: Record<strin
 
   // Tombstone every row about to be deleted so other devices prune locally.
   const synced = ['crm_customers', 'crm_leads', 'crm_orders', 'crm_spacel_followups', 'crm_timeline_logs', 'crm_notifications', 'crm_call_logs'];
-  const future = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const nowIso = new Date().toISOString();
   for (const t of synced) {
     try {
       await env.DB.prepare(
         `INSERT INTO crm_sync_tombstones (tbl, row_id, deleted_at) SELECT '${t}', id, ? FROM ${t}`
-      ).bind(future).run();
+      ).bind(nowIso).run();
     } catch { /* table absent — ignore */ }
   }
 
@@ -465,7 +465,17 @@ async function handleFactoryReset(env: Env, request: Request, user: Record<strin
     ).run();
   } catch { /* no sequences */ }
 
-  return json({ ok: true, deleted });
+  // SYNC EPOCH invalidation: bump the epoch so EVERY device (even ones that
+  // miss the tombstone window) detects the reset on its next pull and purges
+  // its local cache + sync queue + id maps. A stale pending push can then
+  // NEVER resurrect old leads/orders/customers after a factory reset.
+  try {
+    await env.DB.prepare("INSERT OR IGNORE INTO crm_settings (key, value) VALUES ('sync_epoch', '0')").run();
+    await env.DB.prepare("UPDATE crm_settings SET value = CAST(value AS INTEGER) + 1 WHERE key = 'sync_epoch'").run();
+  } catch { /* settings table absent — epoch not critical */ }
+  const epochRow = await env.DB.prepare("SELECT value FROM crm_settings WHERE key = 'sync_epoch'").first();
+
+  return json({ ok: true, deleted, epoch: Number((epochRow as any)?.value ?? 0) });
 }
 
 // ---------------------------------------------------------------------
@@ -850,6 +860,55 @@ async function handleDelete(env: Env, request: Request, user: Record<string, any
   return json({ ok: true });
 }
 
+// ---------------------------------------------------------------------
+// BULK DELETE (admin) — secure, tombstoned, audited. Same guard as the
+// single-row delete: telecallers can never wipe cloud data.
+// ---------------------------------------------------------------------
+async function handleDeleteBulk(env: Env, request: Request, user: Record<string, any> | null): Promise<Response> {
+  const denied = requireAuth(user);
+  if (denied) return denied;
+  const body = await readJson(request);
+  const table = String(body.table || '');
+  if (!TABLES[table]) return json({ error: `Unknown table: ${table}` }, 400);
+  if (!canAccessTable(user, table)) return json({ error: 'Forbidden' }, 403);
+  if (user && user.role !== 'admin') return json({ error: 'Forbidden — admin only' }, 403);
+  const ids = Array.isArray(body.ids) ? body.ids.map(Number).filter((n) => Number.isFinite(n) && n > 0) : [];
+  if (!ids.length) return json({ error: 'ids required' }, 400);
+  const now = new Date().toISOString();
+  const actor = String((user as any)?.full_name || 'Admin');
+  let deleted = 0;
+  // AUDIT: capture rows BEFORE deletion so the timeline keeps the actor, the
+  // entity and the customer link (deleted rows can no longer be joined).
+  if (table === 'crm_leads') {
+    const inList = ids.map(() => '?').join(', ');
+    const rows = (await env.DB.prepare(`SELECT id, customer_id, customer_name FROM crm_leads WHERE id IN (${inList})`).bind(...ids).all()).results as Record<string, any>[];
+    for (const r of rows) {
+      const del = await env.DB.prepare('DELETE FROM crm_leads WHERE id = ?').bind(r.id).run();
+      if (Number((del.meta as any)?.changes ?? 0) > 0) deleted++;
+      try {
+        await env.DB.prepare('INSERT INTO crm_sync_tombstones (tbl, row_id, deleted_at) VALUES (?, ?, ?)').bind(table, Number(r.id) || 0, now).run();
+        await env.DB.prepare(
+          `INSERT INTO crm_timeline_logs (customer_id, entity_type, entity_id, action, notes, agent_name, created_at)
+           VALUES (?, 'Lead', ?, 'Lead Deleted', ?, ?, ?)`
+        ).bind(
+          Number(r.customer_id || 0), Number(r.id || 0),
+          `Lead ${String(r.customer_name || '')} (id ${r.id}) deleted by ${actor} (bulk delete).`,
+          actor, now,
+        ).run();
+      } catch { /* audit best-effort — never blocks the delete */ }
+    }
+  } else {
+    for (const id of ids) {
+      const del = await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run();
+      if (Number((del.meta as any)?.changes ?? 0) > 0) deleted++;
+      try {
+        await env.DB.prepare('INSERT INTO crm_sync_tombstones (tbl, row_id, deleted_at) VALUES (?, ?, ?)').bind(table, id, now).run();
+      } catch { /* best-effort */ }
+    }
+  }
+  return json({ ok: true, deleted });
+}
+
 async function handlePull(env: Env, _request: Request, user: Record<string, any> | null, url: URL): Promise<Response> {
   const denied = requireAuth(user);
   if (denied) return denied;
@@ -912,7 +971,14 @@ async function handlePull(env: Env, _request: Request, user: Record<string, any>
       });
     }
   }
-  return json({ rows, deleted, pulledAt: new Date().toISOString() });
+  // SYNC EPOCH rides every pull — clients compare it with their stored epoch
+  // and purge local cache + queue on a mismatch (factory reset invalidation).
+  let epoch = 0;
+  try {
+    const e = await env.DB.prepare("SELECT value FROM crm_settings WHERE key = 'sync_epoch'").first();
+    epoch = Number((e as any)?.value ?? 0);
+  } catch { /* settings absent */ }
+  return json({ rows, deleted, pulledAt: new Date().toISOString(), epoch });
 }
 
 async function handleCount(env: Env, _request: Request, user: Record<string, any> | null, url: URL): Promise<Response> {
@@ -1319,6 +1385,7 @@ async function dispatch(request: Request, env: Env): Promise<Response> {
       // ---- sync ----
       if (path === '/api/sync/push' && request.method === 'POST') return handlePush(env, request, user);
       if (path === '/api/sync/delete' && request.method === 'POST') return handleDelete(env, request, user);
+      if (path === '/api/sync/delete-bulk' && request.method === 'POST') return handleDeleteBulk(env, request, user);
       if (path === '/api/sync/pull' && request.method === 'GET') return handlePull(env, request, user, url);
       if (path === '/api/sync/count' && request.method === 'GET') return handleCount(env, request, user, url);
       if (path === '/api/invoices' && request.method === 'GET') return handleInvoicesList(env, request, user, url);

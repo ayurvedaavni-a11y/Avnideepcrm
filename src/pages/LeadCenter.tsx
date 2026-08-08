@@ -8,6 +8,7 @@ import Eye from 'lucide-react/dist/esm/icons/eye'
 import X from 'lucide-react/dist/esm/icons/x'
 import AlertTriangle from 'lucide-react/dist/esm/icons/alert-triangle'
 import Copy from 'lucide-react/dist/esm/icons/copy'
+import Trash2 from 'lucide-react/dist/esm/icons/trash-2'
 import Search from 'lucide-react/dist/esm/icons/search'
 import ChevronLeft from 'lucide-react/dist/esm/icons/chevron-left'
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right'
@@ -423,6 +424,25 @@ export function LeadCenter() {
               >
                 <Copy size={15} />
               </button>
+              {isAdmin && (
+                <button
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!window.confirm(`Permanently delete lead #${lead.id} from the cloud too?`)) return;
+                    try {
+                      await api.deleteBulk('leads', [lead.id]);
+                      await db.leads.delete(lead.id);
+                      toast.success('Lead deleted');
+                    } catch (err: any) {
+                      toast.error('Delete failed: ' + (err?.message || 'Unknown error'));
+                    }
+                  }}
+                  title="Delete Lead (admin)"
+                  className="p-2 rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
             </div>
           );
         }
@@ -595,6 +615,24 @@ export function LeadCenter() {
             <button onClick={() => setBulkAssignLead({ leadIds: Array.from(selectedIds) })}
               className="ml-auto inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition">
               <UserPlus size={16} /> Bulk Assign ({selectedIds.size})
+            </button>
+            <button
+              onClick={async () => {
+                const n = selectedIds.size;
+                if (!window.confirm(`Permanently delete ${n} selected lead(s)? This also deletes them from the cloud D1.`)) return;
+                const ids = Array.from(selectedIds);
+                try {
+                  const r = await api.deleteBulk('leads', ids);
+                  for (const id of ids) await db.leads.delete(id);
+                  toast.success((r?.deleted ?? ids.length) + ' lead(s) deleted');
+                  setSelectedIds(new Set());
+                } catch (err: any) {
+                  toast.error('Delete failed: ' + (err?.message || 'Unknown error'));
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-red-600 text-white hover:bg-red-700 transition"
+            >
+              <Trash2 size={16} /> Bulk Delete ({selectedIds.size})
             </button>
             <button onClick={() => setSelectedIds(new Set())} className="px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100">Clear</button>
           </>

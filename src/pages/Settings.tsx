@@ -18,6 +18,7 @@ import { InvoiceSettings } from './InvoiceSettings';
 import { WhatsApp } from './WhatsApp';
 import { changePin } from '../db/auth';
 import { api } from '../db/apiClient';
+import { resetLocalSyncState, clearFailedSyncEntries, countFailedSyncEntries } from '../db/onlineSync';
 
 function SettingsContent() {
   const { profile, isAdmin, logout } = useAuth();
@@ -30,6 +31,8 @@ function SettingsContent() {
   const [resetArmed, setResetArmed] = useState(false);
   const [resetPin, setResetPin] = useState('');
   const [resetBusy, setResetBusy] = useState(false);
+  const [failedSyncCount, setFailedSyncCount] = useState(0);
+  const [clearingSync, setClearingSync] = useState(false);
 
   // Load current commission rate once (admin-only editor).
   useEffect(() => {
@@ -238,6 +241,7 @@ function SettingsContent() {
       const res = await api.factoryReset(pin);
       await db.delete();
       await db.open();
+      resetLocalSyncState(); // wipe sync cursors/epoch — next pull = fresh full sync
       toast.success(`Factory reset complete — ${res?.deleted ?? 0} records wiped from cloud.`);
       setTimeout(() => window.location.reload(), 1500);
     } catch (e: any) {
@@ -245,6 +249,31 @@ function SettingsContent() {
       setResetBusy(false);
     }
   };
+
+  const handleClearFailedSync = async () => {
+    if (clearingSync) return;
+    setClearingSync(true);
+    try {
+      const n = await clearFailedSyncEntries();
+      setFailedSyncCount(0);
+      toast.success(n > 0 ? `${n} failed sync item(s) cleared.` : 'Sync queue is clean.');
+    } catch (e: any) {
+      toast.error('Failed to clear: ' + (e?.message || 'Unknown error'));
+    } finally {
+      setClearingSync(false);
+    }
+  };
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const n = await countFailedSyncEntries();
+        if (alive) setFailedSyncCount(n);
+      } catch { /* db not ready yet */ }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   return (
     <div className="space-y-6 max-w-4xl animate-in fade-in duration-300">
@@ -349,6 +378,22 @@ function SettingsContent() {
             </button>
           </div>
           
+          <div className="p-4 bg-white rounded-lg border border-slate-200 mb-3">
+            <div className="flex justify-between items-center gap-3 flex-wrap">
+              <div>
+                <h3 className="font-bold text-slate-800">Sync Queue Health</h3>
+                <p className="text-sm text-slate-500">Failed (dead-lettered) push items stuck on this device — clear them so they stop retrying old data forever.</p>
+              </div>
+              <button
+                onClick={handleClearFailedSync}
+                disabled={failedSyncCount === 0 || clearingSync}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700 transition disabled:opacity-50"
+              >
+                {clearingSync ? 'Clearing…' : `Clear ${failedSyncCount} failed item${failedSyncCount !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+
           <div className="flex justify-between items-center p-4 bg-red-50 rounded-lg border border-red-200">
             <div>
               <h3 className="font-bold text-red-800">Danger Zone: Factory Reset</h3>
