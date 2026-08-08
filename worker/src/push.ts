@@ -77,9 +77,31 @@ export async function handlePushUnsubscribe(env: PushEnv, request: Request, user
 }
 
 /**
+ * Compute the explicit recipient list for a reminder CREATED BY `creator`.
+ * Server-side recipient rules (the single source of truth — the frontend
+ * can never broadcast):
+ *   Telecaller creator  -> creator telecaller + ALL active admins
+ *   Admin creator       -> admin only
+ */
+async function computeRecipients(env: PushEnv, creator: Record<string, any>): Promise<string[]> {
+  if (creator.role === 'admin') return [String(creator.id)];
+  const admins = await env.DB.prepare(
+    "SELECT id FROM users WHERE role = 'admin' AND is_active = 1"
+  ).all();
+  const adminIds = ((admins.results as any[]) || []).map((a) => String(a.id));
+  // Creator first, admins after — deduped, ordered (stable recipient list).
+  return [...new Set([String(creator.id), ...adminIds])];
+}
+
+/**
  * POST /api/push/reminders — upsert a callback reminder for a lead.
  * One reminder per lead: re-scheduling overwrites the previous one (the old
  * pending reminder is cancelled), so a reschedule can never double-fire.
+ *
+ * RECIPIENT = CREATOR (current logged-in user), explicitly computed
+ * server-side. The lead's assigned_to is NOT assumed to be the creator —
+ * the recipient list is stored on the row so the cron delivers to exactly
+ * the right users and nobody else.
  */
 export async function handleReminderUpsert(env: PushEnv, request: Request, user: Record<string, any> | null): Promise<Response> {
   const denied = requireAuth(user);
@@ -88,40 +110,56 @@ export async function handleReminderUpsert(env: PushEnv, request: Request, user:
   const leadId = Number(body?.leadId);
   if (!leadId) return json({ error: 'leadId required' }, 400);
 
-  // Route the reminder to the lead's assigned telecaller — never to whoever
-  // happens to be logged in on this device. Unassigned/admin-owned leads
-  // (assigned_to is '' or '0') go to the current user (the admin).
-  // NOTE: '0' is the app's unassigned marker — it is a truthy string, so it
-  // must be excluded explicitly or reminders would route to a dead user '0'.
-  const leadRow = await env.DB.prepare('SELECT assigned_to, status FROM crm_leads WHERE id = ?').bind(leadId).first() as any;
-  let userId = String(user!.id);
-  if (leadRow?.assigned_to && String(leadRow.assigned_to) !== '0') userId = String(leadRow.assigned_to);
+  const leadRow = await env.DB.prepare('SELECT status FROM crm_leads WHERE id = ?').bind(leadId).first() as any;
   const leadStatus = String(leadRow?.status || '');
 
   const remindAt = String(body?.remindAt || '');
   if (!remindAt) return json({ error: 'remindAt (ISO) required' }, 400);
   const now = new Date().toISOString();
 
-  // Cancel any previously scheduled reminder for this lead (reschedule rule).
-  await env.DB.prepare(
-    `UPDATE crm_callback_reminders SET status = 'cancelled', updated_at = ? WHERE lead_id = ? AND status = 'pending'`
-  ).bind(now, leadId).run();
+  // Creator = the user who scheduled this reminder (current logged-in user).
+  const creator: Record<string, any> = { id: user!.id, role: user!.role, full_name: user!.full_name || 'User' };
+  const recipients = await computeRecipients(env, creator);
+  const recipientIds = recipients.join(',');
 
+  // UPSERT (reschedule-safe): crm_callback_reminders has UNIQUE(lead_id), so a
+  // cancel-then-INSERT would violate the constraint on the second schedule of
+  // the same lead (the cancelled row still occupies the lead_id). ON CONFLICT
+  // replaces the row in place — the old reminder is naturally superseded and
+  // can never double-fire. This is the permanent reschedule fix.
   await env.DB.prepare(
     `INSERT INTO crm_callback_reminders
-       (lead_id, user_id, customer_id, customer_name, product, lead_status, followup_date, followup_time, remind_at, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`
+       (lead_id, user_id, customer_id, customer_name, product, lead_status, followup_date, followup_time, remind_at, status, created_by, created_by_role, created_by_name, recipient_ids, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(lead_id) DO UPDATE SET
+       user_id = excluded.user_id,
+       customer_id = excluded.customer_id,
+       customer_name = excluded.customer_name,
+       product = excluded.product,
+       lead_status = excluded.lead_status,
+       followup_date = excluded.followup_date,
+       followup_time = excluded.followup_time,
+       remind_at = excluded.remind_at,
+       status = 'pending',
+       retry_count = 0,
+       created_by = excluded.created_by,
+       created_by_role = excluded.created_by_role,
+       created_by_name = excluded.created_by_name,
+       recipient_ids = excluded.recipient_ids,
+       updated_at = excluded.updated_at`
   ).bind(
-    leadId, userId,
+    leadId, String(creator.id),
     Number(body?.customerId || 0),
     String(body?.customerName || ''),
     String(body?.product || ''),
     leadStatus,
     String(body?.followupDate || ''),
     String(body?.followupTime || ''),
-    remindAt, now, now
+    remindAt,
+    String(creator.id), String(creator.role), String(creator.full_name),
+    recipientIds, now, now
   ).run();
-  return json({ ok: true });
+  return json({ ok: true, recipients });
 }
 
 /** DELETE /api/push/reminders?leadId= — cancel a lead's reminder (callback done/closed).
@@ -146,17 +184,37 @@ export async function handleReminderCancel(env: PushEnv, _request: Request, user
   return json({ ok: true });
 }
 
-/** GET /api/push/reminders — list pending reminders for the current user (restore after refresh). */
+/** GET /api/push/reminders — list pending reminders where the current user is
+ *  an explicit RECIPIENT (creator or admin on the row). Restore after refresh
+ *  is scoped per-recipient so nobody ever sees another user's reminder. */
 export async function handleReminderList(env: PushEnv, _request: Request, user: Record<string, any> | null): Promise<Response> {
   const denied = requireAuth(user);
   if (denied) return denied;
+  const uid = String(user!.id);
+  // recipient_ids is a comma-separated list — match with padded commas so
+  // '12' never matches '112'. Also include legacy rows where recipient_ids
+  // is empty but user_id was the creator (old data / direct API users).
   const res = await env.DB.prepare(
     `SELECT id, lead_id, customer_id, customer_name, product, lead_status, followup_date, followup_time, remind_at
      FROM crm_callback_reminders
-     WHERE user_id = ? AND status = 'pending' AND remind_at > ?
+     WHERE status = 'pending' AND remind_at > ?
+       AND (user_id = ? OR instr(',' || recipient_ids || ',', ?) > 0)
      ORDER BY remind_at ASC`
-  ).bind(String(user!.id), new Date().toISOString()).all();
-  return json({ reminders: (res.results as any[]) || [] });
+  ).bind(new Date().toISOString(), uid, `,${uid},`).all();
+  // Map snake_case -> camelCase so the frontend reconcile (reads r.leadId /
+  // r.customerId) always matches — the apiClient types are camelCase.
+  const reminders = ((res.results as any[]) || []).map((r) => ({
+    id: r.id,
+    leadId: r.lead_id,
+    customerId: r.customer_id,
+    customerName: r.customer_name,
+    product: r.product,
+    leadStatus: r.lead_status,
+    followupDate: r.followup_date,
+    followupTime: r.followup_time,
+    remindAt: r.remind_at,
+  }));
+  return json({ reminders });
 }
 
 /**
@@ -181,26 +239,44 @@ export async function sendDueReminders(env: PushEnv): Promise<void> {
     const claimed = Number((claim.meta as any)?.changes ?? 0) > 0;
     if (!claimed) continue;
 
+    // ---- RECIPIENT ROUTING (creator-based, server-side) ----
+    // recipient_ids = explicit comma-separated user ids computed at upsert
+    // time (telecaller creator → creator + admins; admin → admin only).
+    // Fall back to user_id for legacy rows that predate the migration.
+    const splitIds = String(r.recipient_ids || '').split(',').map(s => s.trim()).filter(Boolean);
+    const recipients = splitIds.length ? splitIds : [String(r.user_id)];
+    const creatorId = String(r.created_by || r.user_id);
+
     const subs = await env.DB.prepare(
-      'SELECT endpoint, keys_p256dh, keys_auth FROM crm_push_subscriptions WHERE user_id = ?'
-    ).bind(String(r.user_id)).all();
+      `SELECT endpoint, keys_p256dh, keys_auth, user_id FROM crm_push_subscriptions WHERE user_id IN (${recipients.map(() => '?').join(',')})`
+    ).bind(...recipients).all();
     const subscriptions = (subs.results as any[]) || [];
     if (!subscriptions.length) continue;
 
-    const payload = JSON.stringify({
-      title: 'Callback Reminder',
-      body: `${r.customer_name || 'Customer'} • ${r.followup_time || ''}`.trim(),
-      // Lead status is part of the requested notification data.
-      leadStatus: r.lead_status || '',
-      data: { leadId: Number(r.lead_id), customerId: Number(r.customer_id) },
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      vibrate: [200, 100, 200],
-      // No custom sound file shipped — browsers play their default OS sound.
-    });
+    const creatorName = String(r.created_by_name || '');
+    const customerName = String(r.customer_name || 'Customer');
+    const timeLabel = String(r.followup_time || '');
 
     let transientFailure = false;
     for (const s of subscriptions) {
+      // Admin/other-recipient body includes WHO scheduled it:
+      //   "Deep scheduled a callback reminder for Ranjeet Kumar at 4:30 PM."
+      // The creator's own notification keeps the compact reminder body.
+      const isCreator = String(s.user_id) === creatorId;
+      const body = isCreator
+        ? `${customerName} • ${timeLabel}`.trim()
+        : `${creatorName} scheduled a callback reminder for ${customerName} at ${timeLabel}.`.trim();
+      const payload = JSON.stringify({
+        title: 'Callback Reminder',
+        body,
+        // Lead status is part of the requested notification data.
+        leadStatus: r.lead_status || '',
+        data: { leadId: Number(r.lead_id), customerId: Number(r.customer_id) },
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        vibrate: [200, 100, 200],
+        // No custom sound file shipped — browsers play their default OS sound.
+      });
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.keys_p256dh, auth: s.keys_auth } },

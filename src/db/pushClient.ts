@@ -136,16 +136,34 @@ export async function unregisterPushSubscription(): Promise<void> {
 }
 
 /**
- * Sync EVERY local follow-up/callback lead into a server-side reminder
+ * Sync THIS user's own follow-up/callback leads into server-side reminders
  * (upsert by lead id — rescheduling naturally replaces the old one). Run
  * after login and on refresh so reminders persist across browser restarts.
+ *
+ * RECIPIENT-SAFE: only reminders the CURRENT user owns are synced. A
+ * telecaller only ever re-creates reminders for their OWN leads; an admin
+ * only re-creates reminders for UNASSIGNED leads (their domain). This
+ * prevents one device (e.g. the admin's, which holds every lead locally)
+ * from hijacking another telecaller's reminders during the restore pass.
  */
-export async function syncCallbackReminders(): Promise<void> {
+export async function syncCallbackReminders(profile?: { id: string; role?: string; full_name?: string }): Promise<void> {
   if (!pushSupported()) return;
   try {
-    const leads = await db.leads
-      .filter((l) => isReminderStatus(l.status) && !!l.followupDate)
-      .toArray();
+    const isAdmin = profile?.role === 'admin';
+    const uid = String(profile?.id || '');
+    const uname = String(profile?.full_name || '');
+    const owned = (l: any) => {
+      if (isAdmin) {
+        // Admin's domain = unassigned leads only.
+        const at = String(l.assignedTo ?? l.assigned_to ?? '');
+        return at === '' || at === '0' || at === 'null';
+      }
+      const at = String(l.assignedTo ?? l.assigned_to ?? '');
+      if (at && at !== '0' && at !== 'null') return at === uid;
+      return String(l.assignedAgent ?? l.assigned_agent ?? '') === uname;
+    };
+    const leads = (await db.leads.toArray())
+      .filter((l) => isReminderStatus(l.status) && !!l.followupDate && owned(l));
     const customers = await db.customers.toArray();
     const custMap = new Map(customers.map((c) => [c.id, c]));
     const activeLeadIds = new Set(leads.map((l) => l.id!));

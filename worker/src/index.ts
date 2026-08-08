@@ -760,6 +760,21 @@ async function handlePush(env: Env, request: Request, user: Record<string, any> 
     if (data.status === 'Delivered' && !data.delivered_at) data.delivered_at = data.updated_at || new Date().toISOString();
   }
 
+  // SERVER-SIDE NOTIFICATION RECIPIENT (creator-based): any "Reminder
+  // Scheduled" notification pushed by a user is stamped with THAT user as its
+  // recipient_user_id — so the bell only delivers it to the creator (and
+  // admins, who see the full stream), never broadcast to every telecaller.
+  // This is the server-side enforcement of the recipient architecture; the
+  // client cannot set recipient_user_id itself.
+  if (table === 'crm_notifications' && user) {
+    const title = String(data.title || row.title || '');
+    if (/^Reminder Scheduled/i.test(title) || /callback reminder/i.test(title)) {
+      // Server is ALWAYS the source of truth — stamp unconditionally so a
+      // client can never forge a recipient (or broadcast a reminder).
+      data.recipient_user_id = String(user.id);
+    }
+  }
+
   if (Object.keys(data).length === 0) return json({ error: 'No writable columns' }, 400);
 
   // DELTA-SYNC SAFETY: guarantee timestamps on pushed rows. Without this, a
@@ -958,6 +973,22 @@ async function handlePull(env: Env, _request: Request, user: Record<string, any>
       const res = since
         ? await env.DB.prepare(sql).bind(user.id, user.full_name, since).all()
         : await env.DB.prepare(sql).bind(user.id, user.full_name).all();
+      rows[name] = (res.results || []).map((r) => normalizeRow(name, r as Record<string, any>));
+      continue;
+    }
+    // RECIPIENT-SCOPED NOTIFICATIONS: callback-reminder notifications carry a
+    // recipient_user_id (set server-side at push time). A telecaller only ever
+    // receives broadcast rows (NULL, e.g. lead-assignment alerts) or rows whose
+    // recipient is THEMSELVES — never another telecaller's reminders. Admins
+    // see everything (they are a recipient of every telecaller-created
+    // reminder, so they need the full stream for the bell).
+    if (name === 'crm_notifications' && user && user.role !== 'admin') {
+      const sql = since
+        ? "SELECT * FROM crm_notifications WHERE (recipient_user_id IS NULL OR recipient_user_id = ?) AND created_at > ? ORDER BY id ASC"
+        : "SELECT * FROM crm_notifications WHERE recipient_user_id IS NULL OR recipient_user_id = ? ORDER BY id ASC";
+      const res = since
+        ? await env.DB.prepare(sql).bind(String(user.id), since).all()
+        : await env.DB.prepare(sql).bind(String(user.id)).all();
       rows[name] = (res.results || []).map((r) => normalizeRow(name, r as Record<string, any>));
       continue;
     }

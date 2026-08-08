@@ -55,7 +55,7 @@ export const TABLES: Record<string, TableDef> = {
   },
   crm_notifications: {
     booleans: ['is_read'],
-    columns: ['title', 'message', 'type', 'is_read', 'link_to', 'created_at'],
+    columns: ['title', 'message', 'type', 'is_read', 'link_to', 'created_at', 'recipient_user_id'],
   },
   crm_call_logs: {
     columns: [

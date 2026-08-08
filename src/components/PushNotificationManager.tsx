@@ -26,7 +26,7 @@ export function PushNotificationManager() {
       const granted = await ensurePushSubscription(profile);
       enabledRef.current = granted;
       setPermissionDenied(!granted && Notification.permission === 'denied');
-      if (granted) await syncCallbackReminders();
+      if (granted) await syncCallbackReminders(profile);
       return granted;
     } catch (err) {
       console.error('[push] init failed:', err);
