@@ -254,7 +254,67 @@ export function resetLocalSyncState(): void {
 // ---------- inbound: apply a cloud row into the local cache ----------
 type DeferredRow = [string, Record<string, any>];
 
-async function applyRemoteRow(key: string, cloudRow: Record<string, any>, deferred: DeferredRow[]): Promise<void> {
+// ---------- inbound: apply cloud rows into the local cache (BATCHED) ----------
+// PERF FIX (root cause of the 10+ second freeze): the old applyRemoteRow wrote
+// every cloud row with its own sequence of awaited IndexedDB transactions (two
+// compound syncMap lookups + optional dedup query + table write + syncMap
+// write). A full pull of thousands of rows therefore ran tens of thousands of
+// sequential transactions on the main thread and fired a useLiveQuery
+// re-render PER ROW. Rows are now collected in memory and flushed per table
+// with bulkAdd / batched updates inside a handful of transactions, so the UI
+// re-renders once per table per pull and the whole dataset applies in a
+// fraction of the time. Data semantics are identical (update existing local
+// row / add new row / dedup match / defer rows whose parent is not local yet).
+interface PullContext {
+  /** table -> localId -> cloudId (snapshot of syncMap at pull start) */
+  byLocal: Map<string, Map<number, number>>;
+  /** table -> cloudId -> localId (snapshot + this pull's writes) */
+  byCloud: Map<string, Map<number, number>>;
+  /** mapping entries already persisted before this pull (for dedupe) */
+  persisted: Map<string, number>;
+  /** new (table, localId) -> cloudId mappings to persist at the end */
+  mapWrites: Array<{ localTable: string; localId: number; cloudId: number }>;
+}
+
+async function buildPullContext(): Promise<PullContext> {
+  const byLocal = new Map<string, Map<number, number>>();
+  const byCloud = new Map<string, Map<number, number>>();
+  const persisted = new Map<string, number>();
+  // Pre-create the per-table maps for EVERY sync table - not just the ones
+  // present in the current syncMap. Otherwise, on a fresh device (empty
+  // syncMap) the maps are undefined and the `?.set` calls in flushTable()
+  // silently drop the new cloud-id mappings, which keeps every FK-dependent
+  // row (leads -> customers, orders -> leads, ...) deferred forever.
+  for (const k of ORDERED_KEYS) {
+    byLocal.set(k, new Map());
+    byCloud.set(k, new Map());
+  }
+  const rows = await db.syncMap.toArray();
+  for (const m of rows) {
+    if (!byLocal.has(m.localTable)) byLocal.set(m.localTable, new Map());
+    if (!byCloud.has(m.localTable)) byCloud.set(m.localTable, new Map());
+    byLocal.get(m.localTable)!.set(m.localId, m.cloudId);
+    byCloud.get(m.localTable)!.set(m.cloudId, m.localId);
+    persisted.set(m.localTable + ':' + m.localId, m.cloudId);
+  }
+  return { byLocal, byCloud, persisted, mapWrites: [] };
+}
+
+function ctxLocalId(ctx: PullContext, table: string, cloudId: number): number | undefined {
+  return ctx.byCloud.get(table)?.get(cloudId);
+}
+
+interface PendingRow { row: Record<string, any>; cloudId: number; }
+interface PendingTable { updates: PendingRow[]; adds: PendingRow[]; }
+
+async function collectRemoteRow(
+  key: string,
+  cloudRow: Record<string, any>,
+  pending: Map<string, PendingTable>,
+  ctx: PullContext,
+  deferred: DeferredRow[],
+  dedupPossible: boolean
+): Promise<void> {
   const cfg = SYNC_TABLES[key];
   if (!cfg) return;
   const localTable = (db as any)[cfg.dexie];
@@ -276,9 +336,9 @@ async function applyRemoteRow(key: string, cloudRow: Record<string, any>, deferr
       : undefined;
     if (fkParent) {
       const parentCloudId = Number(v) || 0;
-      const parentLocalId = parentCloudId ? await getLocalIdByCloud(fkParent[1], parentCloudId) : undefined;
+      const parentLocalId = parentCloudId ? ctxLocalId(ctx, fkParent[1], parentCloudId) : undefined;
       if (parentLocalId == null && parentCloudId !== 0) {
-        deferred.push([key, cloudRow]); // parent not local yet — retry after other tables
+        deferred.push([key, cloudRow]); // parent not local yet - retry after other tables
         return;
       }
       v = parentLocalId ?? 0;
@@ -288,26 +348,120 @@ async function applyRemoteRow(key: string, cloudRow: Record<string, any>, deferr
   if (!cloudId) return;
 
   // find existing local row (by cloud id, then by dedup key)
-  let localId = await getLocalIdByCloud(key, cloudId);
-  if (localId == null && cfg.dedup && local[cfg.dedup]) {
+  let localId = ctxLocalId(ctx, key, cloudId);
+  // PERF: on a fresh device the local table is empty, so the dedup query can
+  // never match - skip it (it was one IndexedDB query per row before).
+  if (localId == null && dedupPossible && cfg.dedup && local[cfg.dedup]) {
     const dup = await (localTable as any).where(cfg.dedup).equals(local[cfg.dedup]).first();
     if (dup) localId = dup.id;
   }
 
+  let p = pending.get(key);
+  if (!p) { p = { updates: [], adds: [] }; pending.set(key, p); }
   if (localId != null) {
-    await localTable.update(localId, local);
-    await setMap(key, localId, cloudId);
+    p.updates.push({ row: { ...local, id: localId }, cloudId });
   } else {
-    const newId = await localTable.add(local);
-    if (newId != null) await setMap(key, newId, cloudId);
+    p.adds.push({ row: local, cloudId });
   }
 }
+
+async function flushTable(key: string, pending: Map<string, PendingTable>, ctx: PullContext): Promise<void> {
+  const cfg = SYNC_TABLES[key];
+  if (!cfg) return;
+  const localTable = (db as any)[cfg.dexie];
+  const p = pending.get(key);
+  if (!p) return;
+  pending.delete(key);
+  const CHUNK = 1500;
+  // 1) Existing local rows - MERGE semantics with a DIRTY CHECK: bulkGet the
+  //    current rows and skip every row whose cloud fields already match, so a
+  //    full pull where nothing changed writes ZERO rows (no wasted writes, no
+  //    pointless LiveQuery re-renders). Only genuinely-changed rows are
+  //    updated - per-row update() inside ONE transaction (like the old
+  //    update(), preserving local-only fields: callCount, reminder dates, ...)
+  //    but with a single changes event per chunk.
+  for (let i = 0; i < p.updates.length; i += CHUNK) {
+    const chunk = p.updates.slice(i, i + CHUNK);
+    const ids = chunk.map((x) => Number(x.row.id));
+    const existing = await localTable.bulkGet(ids);
+    const byId = new Map<number, any>();
+    for (const r of existing) { if (r != null) byId.set(Number(r.id), r); }
+    const changed: Array<{ key: number; changes: Record<string, any> }> = [];
+    for (const x of chunk) {
+      const lid = Number(x.row.id);
+      const cur = byId.get(lid);
+      const row = x.row;
+      let dirty = false;
+      if (cur) {
+        for (const k of Object.keys(row)) {
+          if (k === 'id') continue;
+          if (cur[k] !== row[k]) { dirty = true; break; }
+        }
+      } else {
+        dirty = true; // local row missing - write it
+      }
+      if (!dirty) continue;
+      const changes = { ...row };
+      delete changes.id;
+      changed.push({ key: lid, changes });
+    }
+    if (changed.length) {
+      await db.transaction('rw', localTable, async () => {
+        for (const c of changed) await localTable.update(c.key, c.changes);
+      });
+    }
+    for (const x of chunk) {
+      const lid = Number(x.row.id);
+      if (lid == null) continue;
+      ctx.byLocal.get(key)?.set(lid, x.cloudId);
+      ctx.byCloud.get(key)?.set(x.cloudId, lid);
+      ctx.mapWrites.push({ localTable: key, localId: lid, cloudId: x.cloudId });
+    }
+  }
+  // 2) Brand-new rows - ONE bulkAdd per chunk. bulkAdd returns the last
+  //    auto-increment key; keys are allocated consecutively inside the single
+  //    transaction, so the new local ids are (lastKey - n + 1)..lastKey in
+  //    order - captured without any per-row awaits.
+  for (let i = 0; i < p.adds.length; i += CHUNK) {
+    const chunk = p.adds.slice(i, i + CHUNK);
+    const rows = chunk.map((x) => x.row);
+    const lastKey = await localTable.bulkAdd(rows);
+    const startKey = Number(lastKey) - rows.length + 1;
+    for (let j = 0; j < rows.length; j++) {
+      const newId = startKey + j;
+      const cloudId = chunk[j].cloudId;
+      ctx.byLocal.get(key)?.set(newId, cloudId);
+      ctx.byCloud.get(key)?.set(cloudId, newId);
+      ctx.mapWrites.push({ localTable: key, localId: newId, cloudId });
+    }
+  }
+}
+
+/** Persist new (localTable, localId) -> cloudId mappings in ONE bulkAdd. */
+async function flushMapWrites(ctx: PullContext): Promise<void> {
+  if (ctx.mapWrites.length === 0) return;
+  const seen = new Set<string>();
+  const toAdd: Array<{ localTable: string; localId: number; cloudId: number }> = [];
+  for (const w of ctx.mapWrites) {
+    const k = w.localTable + ':' + w.localId;
+    if (seen.has(k)) continue; // keep the latest mapping for the same local row
+    seen.add(k);
+    if (ctx.persisted.get(k) === w.cloudId) continue; // already persisted
+    toAdd.push(w);
+  }
+  if (toAdd.length === 0) return;
+  const CHUNK = 2000;
+  for (let i = 0; i < toAdd.length; i += CHUNK) {
+    await db.syncMap.bulkAdd(toAdd.slice(i, i + CHUNK));
+  }
+}
+
 
 // ---------- incremental pull (cursor-based delta sync) ----------
 // Every 30s the client no longer downloads the WHOLE cloud. After the first
 // full sync it stores per-user cursors (server watermark `pulledAt`) and only
 // fetches rows changed since then + tombstones for cloud-side deletes. A full
-// re-sync runs every 10th pull (~5 min) as a self-healing safety net, and
+// re-sync runs rarely (every 25th pull) as a self-healing safety net, and
 // `syncNow()` (manual refresh) always does a full pull. Login is never
 // blocked — this runs in the background; the UI reads the local Dexie cache.
 const CURSOR_PREFIX = 'crm_sync_cursors_';
@@ -329,10 +483,13 @@ async function pullFromCloud(userId: string, forceFull = false): Promise<{ ok: b
   try {
     const cursors = loadCursors(userId);
     const ready = cursors && ORDERED_KEYS.every((k) => typeof cursors.tables[k] === 'string');
-    // Full re-sync every 5th pull (~75s worst case) instead of every 10th
-    // (~2.5 min): a stuck/invalid incremental cursor heals twice as fast, so a
-    // stale open tab converges quickly even if a watermark ever goes stale.
-    const incremental = ready && !forceFull && (cursors!.fullPulls % 5 !== 4);
+    // PERF FIX: full re-syncs are rare now (every 25th pull, ~6 min) so a
+    // large database is not re-downloaded + re-applied every 75 seconds.
+        // PERF FIX: full re-syncs were forced every 5th pull (~75s). With a large
+    // database every full pull re-downloads + re-applies EVERY row, freezing the
+    // main thread. The cheap incremental cursor pull is now the default; a full
+    // re-sync only runs every 25th pull (~6 min) as a self-healing safety net.
+    const incremental = ready && !forceFull && (cursors!.fullPulls % 25 !== 24);
     const cloudNames = ORDERED_KEYS.map((k) => SYNC_TABLES[k].cloud);
     const deferred: DeferredRow[] = [];
     let pulledAt = '';
@@ -365,10 +522,25 @@ async function pullFromCloud(userId: string, forceFull = false): Promise<{ ok: b
     }
     if (serverEpoch > 0) localStorage.setItem(epochKey, String(serverEpoch));
     pulledAt = res.pulledAt || new Date().toISOString();
+    // BATCHED APPLICATION (perf fix): collect + flush ONE table at a time, in
+    // parent-first order, so FK resolution never needs the deferred retry
+    // passes in the normal case (customers flush before leads, leads before
+    // orders, ...). Each table writes with bulkAdd / batched dirty-checked
+    // updates inside a handful of transactions - instead of per-row awaited
+    // IndexedDB ops that froze the main thread for 10+ seconds at scale and
+    // re-rendered the UI per row.
+    const ctx = await buildPullContext();
+    const pending = new Map<string, PendingTable>();
     for (const key of ORDERED_KEYS) {
       const cfg = SYNC_TABLES[key];
-      for (const row of res.rows[cfg.cloud] || []) await applyRemoteRow(key, row, deferred);
+      // Fresh table = no local rows to dedup against, so the per-row dedup
+      // IndexedDB query is skipped entirely (massive win on first sync).
+      const dedupPossible = (await (db as any)[cfg.dexie].count()) > 0;
+      for (const row of res.rows[cfg.cloud] || []) await collectRemoteRow(key, row, pending, ctx, deferred, dedupPossible);
+      await flushTable(key, pending, ctx);
     }
+    // Persist all new (table, localId -> cloudId) mappings in one pass.
+    await flushMapWrites(ctx);
     // prune locally-deleted cloud rows via tombstones (incremental only)
     if (incremental) {
       const deleted = res.deleted || {};
@@ -384,12 +556,16 @@ async function pullFromCloud(userId: string, forceFull = false): Promise<{ ok: b
         }
       }
     }
-    // retry orphaned rows (missing parents) a few times
+    // retry orphaned rows (missing parents) a few times - the in-memory ctx
+    // maps now hold the parent ids written by this pull, so deferred rows
+    // resolve without touching IndexedDB per row.
     for (let pass = 0; pass < 3 && deferred.length > 0; pass++) {
       const remaining: DeferredRow[] = [];
-      for (const [k, r] of deferred) await applyRemoteRow(k, r, remaining);
+      for (const [k, r] of deferred) await collectRemoteRow(k, r, pending, ctx, remaining, true);
       deferred.length = 0;
       deferred.push(...remaining);
+      for (const key of ORDERED_KEYS) await flushTable(key, pending, ctx);
+      await flushMapWrites(ctx);
     }
     const next: SyncCursors = {
       tables: {},
@@ -415,10 +591,13 @@ export async function pullAllFromCloud(): Promise<{ ok: boolean; error?: string 
 
 /**
  * Pull cloud changes for the current user now.
- * - `forceFull = true`  → full pull (fresh, cursor-independent). Used when the
- *   tab becomes visible again, regains focus, or comes back online — the exact
- *   moments a stale open tab must converge on the latest server data.
- * - `forceFull = false` → normal incremental cursor pull (the 15s interval).
+ * - `forceFull = true`  → full pull (fresh, cursor-independent). Only used on a
+ *   genuine `online` event (device reconnected), manual "Sync Now" and the
+ *   rare 25th-pull self-heal — never on tab visibility/focus anymore.
+ * - `forceFull = false` → normal incremental cursor pull (15s interval and
+ *   tab-return). Only rows changed since the watermark are fetched/applied, so
+ *   returning to an already-open tab converges in one cheap request without
+ *   freezing the main thread.
  */
 export async function pullNow(forceFull: boolean): Promise<{ ok: boolean; error?: string }> {
   return pullFromCloud(activeUserId(), forceFull);
@@ -578,17 +757,9 @@ function kick() { void processQueue(); }
 //     for large datasets — consecutive returns within the gap use the cheap
 //     incremental cursor pull instead (the 5th-pull cadence still forces
 //     fulls as a background self-heal).
-const FULL_PULL_GAP_MS = 60_000;
-let lastFullPullAt = 0;
-
-async function refreshOnTabReturn(forceFull: boolean) {
+async function refreshOnTabReturn(forceFull = false) {
   await processQueue();
-  if (forceFull || Date.now() - lastFullPullAt > FULL_PULL_GAP_MS) {
-    lastFullPullAt = Date.now();
-    await pullNow(true);
-  } else {
-    await pullNow(false);
-  }
+  await pullNow(forceFull);
 }
 
 export async function startOnlineSync(): Promise<void> {

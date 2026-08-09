@@ -109,10 +109,16 @@ function AppContent() {
 
   const canEnter = offlineMode || Boolean(user && profile);
 
-  // Boot: SQLite hydration (desktop) + online cloud sync (when logged in)
+  // Boot: SQLite hydration (desktop) + online cloud sync (when logged in).
+  // PERF FIX: the app shell now renders IMMEDIATELY after auth. The old code
+  // awaited the entire first sync (10+ seconds on large datasets) before
+  // showing the UI. Now the shell + the local Dexie cache are usable right
+  // away; hydration/sync/repair run in the background and the pages
+  // (useLiveQuery) refresh themselves when fresh data arrives — no full-page
+  // loading screen on first open, reload or return-to-tab.
   useEffect(() => {
     if (!canEnter) return;
-    let mounted = true;
+    setIsReady(true);
     (async () => {
       try {
         const electronAPI = (window as any).electron;
@@ -133,11 +139,9 @@ function AppContent() {
         }
       } catch (err) {
         console.error('[App] Boot sequence error:', err);
-      } finally {
-        if (mounted) setIsReady(true);
       }
     })();
-    return () => { mounted = false; stopOnlineSync(); };
+    return () => { stopOnlineSync(); };
   }, [canEnter, user, offlineMode]);
   // TASK 7 + 9 — STARTUP SELF-HEALING: silently repair any orphan/invalid lead
   // assignment in the background. Runs once per app start (admin only) and is
